@@ -1,15 +1,18 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState, useRef, useMemo, useCallback, type FormEvent } from 'react'
+import { useEffect, useState, useRef, useMemo, type FormEvent } from 'react'
 import { useAuthStore } from '@/stores/auth-store'
+import { useChatRequests } from '@/hooks/use-chat-requests'
 import { useFriendships, useChats, useChatMessages } from '@/hooks/use-friend-chat'
 import { useChatScroll } from '@/hooks/use-chat-scroll'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { getInitials } from '@/lib/utils'
+import { ChatRequestPopover } from '@/features/chat/chat-request-popover'
+import { NewChatDialog } from '@/features/chat/new-chat-dialog'
+import { ChatContactPopover } from '@/features/chat/chat-contact-popover'
 import { format } from 'date-fns'
 import {
   MessageCircle,
@@ -38,6 +41,7 @@ export function ChatView() {
   
   const { friendshipsQuery, sendFriendRequest, updateFriendship } = useFriendships()
   const { chatsQuery, createChat } = useChats()
+  const { chatRequestsQuery, respondToChatRequestMutation } = useChatRequests()
   
   const [messageText, setMessageText] = useState('')
   const [showEmoji, setShowEmoji] = useState(false)
@@ -45,13 +49,15 @@ export function ChatView() {
   const [searchUsername, setSearchUsername] = useState('')
   const [showNewChat, setShowNewChat] = useState(false)
 
+  const chatScrollAreaRef = useRef<HTMLDivElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const chats = useMemo(() => chatsQuery.data ?? [], [chatsQuery.data])
   const friendships = useMemo(() => friendshipsQuery.data ?? [], [friendshipsQuery.data])
+  const incomingChatRequests = useMemo(() => chatRequestsQuery.data ?? [], [chatRequestsQuery.data])
 
-  const pendingRequests = friendships.filter((f: any) => f.status === 'pending' && f.recipient_id === user?.id)
+  const pendingFriendRequests = friendships.filter((f: any) => f.status === 'pending' && f.recipient_id === user?.id)
   const acceptedFriends = friendships.filter((f: any) => f.status === 'accepted')
 
   function insertEmoji(emoji: string) {
@@ -61,21 +67,30 @@ export function ChatView() {
 
   const activeChat = useMemo(() => chats.find(c => c.id === activeChatId), [chats, activeChatId])
   const { messagesQuery, sendMessage, uploadFile, markAsRead } = useChatMessages(activeChatId ?? undefined)
-  const messages = messagesQuery.data ?? []
+  const messages = useMemo(() => messagesQuery.data ?? [], [messagesQuery.data])
+  const isMessagesLoading = messagesQuery.isLoading || messagesQuery.isFetching
+  const hasUnreadIncomingMessages = useMemo(
+    () => messages.some((message) => message.user_id !== user?.id && message.status !== 'read'),
+    [messages, user?.id]
+  )
 
-  const markReadCallback = useCallback(() => {
-    if (activeChatId) {
-      markAsRead.mutate()
-    }
-  }, [activeChatId, markAsRead])
-
-  // Attach our modular smart chat-scroll hook
-  const { isAtBottom } = useChatScroll(
+  const { isAtBottom, distanceFromBottom, scrollToBottom } = useChatScroll(
+    chatScrollAreaRef,
     messagesEndRef,
     activeChatId ?? undefined,
     messages.length,
-    markReadCallback
+    isMessagesLoading
   )
+
+  useEffect(() => {
+    if (!activeChatId) return
+    if (isMessagesLoading) return
+    if (!isAtBottom) return
+    if (!hasUnreadIncomingMessages) return
+    if (markAsRead.isPending) return
+
+    markAsRead.mutate()
+  }, [activeChatId, hasUnreadIncomingMessages, isAtBottom, isMessagesLoading, markAsRead])
 
   function getChatName(chat: any) {
     if (chat.is_group) return chat.name || 'Group Chat'
@@ -88,6 +103,19 @@ export function ChatView() {
     if (chat.is_group) return chat.avatar_url
     const other = chat.participants?.find((p: any) => p.profiles.id !== user?.id)?.profiles
     return other?.avatar_url
+  }
+
+  function getChatContact(chat: any) {
+    if (chat.is_group) return null
+    return chat.participants?.find((p: any) => p.profiles.id !== user?.id)?.profiles ?? null
+  }
+
+  function findExistingDirectChat(friendId: string) {
+    return chats.find((chat: any) =>
+      !chat.is_group &&
+      chat.participants?.some((p: any) => p.profiles.id === friendId) &&
+      chat.participants?.some((p: any) => p.profiles.id === user?.id)
+    )
   }
 
   async function handleSend(e: FormEvent) {
@@ -117,12 +145,7 @@ export function ChatView() {
   }
 
   async function handleStartChat(friendId: string) {
-    // Check if DM already exists
-    const existing = chats.find(c => 
-      !c.is_group && 
-      c.participants?.some((p: any) => p.profiles.id === friendId) &&
-      c.participants?.some((p: any) => p.profiles.id === user?.id)
-    )
+    const existing = findExistingDirectChat(friendId)
 
     if (existing) {
       setActiveChatId(existing.id)
@@ -139,6 +162,24 @@ export function ChatView() {
     }
   }
 
+  function handleAcceptChatRequest(requestId: string) {
+    respondToChatRequestMutation.mutate(
+      { requestId, action: 'accepted' },
+      {
+        onSuccess: (chatId) => {
+          if (chatId) {
+            setActiveChatId(chatId)
+            setActiveTab('chats')
+          }
+        },
+      }
+    )
+  }
+
+  function handleRejectChatRequest(requestId: string) {
+    respondToChatRequestMutation.mutate({ requestId, action: 'rejected' })
+  }
+
   return (
     <div className="flex-1 flex h-full overflow-hidden relative">
       <div className="w-80 border-r border-border bg-card/30 flex flex-col shrink-0">
@@ -148,9 +189,9 @@ export function ChatView() {
               <TabsTrigger value="chats" className="gap-2"><MessageCircle className="w-4 h-4"/> Chats</TabsTrigger>
               <TabsTrigger value="friends" className="gap-2">
                 <Users className="w-4 h-4"/> Friends
-                {pendingRequests.length > 0 && (
+                {pendingFriendRequests.length > 0 && (
                   <span className="ml-1 bg-primary text-primary-foreground text-[10px] px-1.5 py-0.5 rounded-full">
-                    {pendingRequests.length}
+                    {pendingFriendRequests.length}
                   </span>
                 )}
               </TabsTrigger>
@@ -163,9 +204,18 @@ export function ChatView() {
             <div className="p-2 space-y-1">
               <div className="px-2 pb-2 pt-1 flex items-center justify-between">
                 <span className="text-xs font-semibold text-muted-foreground uppercase">Recent</span>
-                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setShowNewChat(true)}>
-                  <Plus className="w-4 h-4" />
-                </Button>
+                <div className="flex items-center gap-1">
+                  <ChatRequestPopover
+                    requests={incomingChatRequests}
+                    onAccept={handleAcceptChatRequest}
+                    onReject={handleRejectChatRequest}
+                    isPending={respondToChatRequestMutation.isPending}
+                    activeRequestId={respondToChatRequestMutation.variables?.requestId}
+                  />
+                  <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setShowNewChat(true)}>
+                    <Plus className="w-4 h-4" />
+                  </Button>
+                </div>
               </div>
               {chats.length === 0 ? (
                 <div className="p-4 text-center text-muted-foreground text-sm">No chats yet.</div>
@@ -175,18 +225,21 @@ export function ChatView() {
                   const isUnread = lastMsg && lastMsg.user_id !== user?.id && lastMsg.status !== 'read'
                   
                   return (
-                    <button
+                    <div
                       key={chat.id}
-                      onClick={() => setActiveChatId(chat.id)}
                       className={`w-full flex items-center gap-3 p-2 rounded-xl transition-all ${
                         activeChatId === chat.id ? 'bg-primary/10' : 'hover:bg-accent'
                       }`}
                     >
-                      <Avatar className="w-10 h-10 border border-border/50">
-                        <AvatarImage src={getChatAvatar(chat) ?? undefined} />
-                        <AvatarFallback>{getInitials(getChatName(chat))}</AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 min-w-0 text-left">
+                      <ChatContactPopover
+                        contact={getChatContact(chat)}
+                        onOpenChat={() => setActiveChatId(chat.id)}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setActiveChatId(chat.id)}
+                        className="flex-1 min-w-0 text-left"
+                      >
                         <div className="flex justify-between items-baseline mb-0.5">
                           <span className={`text-sm truncate ${isUnread ? 'font-bold' : 'font-semibold'}`}>{getChatName(chat)}</span>
                           {lastMsg && (
@@ -218,8 +271,8 @@ export function ChatView() {
                             </div>
                           )}
                         </div>
-                      </div>
-                    </button>
+                      </button>
+                    </div>
                   )
                 })
               )}
@@ -240,10 +293,10 @@ export function ChatView() {
                 </form>
               </div>
               
-              {pendingRequests.length > 0 && (
+              {pendingFriendRequests.length > 0 && (
                 <div>
                   <div className="px-2 text-xs font-semibold text-muted-foreground uppercase mb-2">Friend Requests</div>
-                  {pendingRequests.map((req: any) => (
+                  {pendingFriendRequests.map((req: any) => (
                     <div key={req.id} className="flex items-center justify-between p-2 rounded-lg bg-accent/30 mx-2">
                       <div className="flex items-center gap-2 overflow-hidden">
                         <Avatar className="w-8 h-8">
@@ -274,10 +327,11 @@ export function ChatView() {
                     return (
                       <div key={f.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-accent/50 mx-2 group">
                         <div className="flex items-center gap-3 overflow-hidden">
-                          <Avatar className="w-8 h-8">
-                            <AvatarImage src={friend.avatar_url} />
-                            <AvatarFallback>{getInitials(friend.full_name)}</AvatarFallback>
-                          </Avatar>
+                          <ChatContactPopover
+                            contact={friend}
+                            onOpenChat={handleStartChat}
+                            size="sm"
+                          />
                           <div className="flex flex-col min-w-0">
                             <span className="text-sm font-medium truncate">{friend.full_name || friend.username}</span>
                             <span className="text-xs text-muted-foreground truncate">@{friend.username}</span>
@@ -303,8 +357,8 @@ export function ChatView() {
               <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-primary/20">
                 <MessageSquare className="w-8 h-8 text-primary" />
               </div>
-              <h2 className="text-xl font-semibold">Pusdalops Chat</h2>
-              <p className="text-sm text-muted-foreground">Select a friend or chat to start messaging directly across the platform.</p>
+              <h2 className="text-xl font-semibold">Lumen: Chat</h2>
+              <p className="text-sm text-muted-foreground">Select a friend, open a recent chat, or send a new request by username to start messaging directly across the platform.</p>
               <Button onClick={() => setShowNewChat(true)}>Start a new chat</Button>
             </div>
           </div>
@@ -323,7 +377,7 @@ export function ChatView() {
               </div>
             </div>
 
-            <ScrollArea className="flex-1 px-4 md:px-6 z-10">
+            <ScrollArea ref={chatScrollAreaRef} className="flex-1 px-4 md:px-6 z-10">
               <div className="py-6 space-y-6">
                 {messages.length === 0 && (
                   <div className="text-center py-12">
@@ -347,12 +401,12 @@ export function ChatView() {
               </div>
 
               {/* Scroll to bottom floating button */}
-              {!isAtBottom && messages.length > 0 && (
-                <div className="sticky bottom-6 flex justify-end mr-4 animate-in fade-in zoom-in slide-in-from-bottom-2">
+              {!isAtBottom && distanceFromBottom > 160 && messages.length > 0 && (
+                <div className="pointer-events-none absolute bottom-6 right-6 flex justify-end animate-in fade-in zoom-in slide-in-from-bottom-2">
                   <Button
                     size="icon"
-                    className="h-10 w-10 rounded-full shadow-xl bg-background border border-border text-foreground hover:bg-accent hover:text-foreground"
-                    onClick={() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })}
+                    className="pointer-events-auto h-11 w-11 rounded-full shadow-xl bg-background border border-border text-foreground hover:bg-accent hover:text-foreground"
+                    onClick={() => scrollToBottom('smooth')}
                   >
                     <ArrowDown className="w-5 h-5" />
                   </Button>
@@ -428,43 +482,13 @@ export function ChatView() {
         )}
       </div>
 
-      <Dialog open={showNewChat} onOpenChange={setShowNewChat}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>New Chat</DialogTitle>
-            <DialogDescription>Select friends to start a conversation.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 pt-4">
-            <ScrollArea className="max-h-60">
-              <div className="space-y-1">
-                {acceptedFriends.length === 0 ? (
-                  <p className="text-sm text-center text-muted-foreground py-4">No friends found.</p>
-                ) : (
-                  acceptedFriends.map((f: any) => {
-                    const friend = f.requester_id === user?.id ? (f as any).recipient : (f as any).requester
-                    return (
-                      <button
-                        key={friend.id}
-                        onClick={() => handleStartChat(friend.id)}
-                        className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-accent transition-colors"
-                      >
-                        <Avatar className="w-10 h-10 border border-border/50">
-                          <AvatarImage src={friend.avatar_url} />
-                          <AvatarFallback>{getInitials(friend.full_name)}</AvatarFallback>
-                        </Avatar>
-                        <div className="flex flex-col min-w-0 text-left">
-                          <span className="text-sm font-medium truncate">{friend.full_name}</span>
-                          <span className="text-xs text-muted-foreground truncate">@{friend.username}</span>
-                        </div>
-                      </button>
-                    )
-                  })
-                )}
-              </div>
-            </ScrollArea>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <NewChatDialog
+        open={showNewChat}
+        onOpenChange={setShowNewChat}
+        acceptedFriends={acceptedFriends}
+        currentUserId={user?.id}
+        onStartChat={handleStartChat}
+      />
     </div>
   )
 }
@@ -474,12 +498,13 @@ function MessageBubble({
   showHeader,
   isOwn,
 }: {
-  message: ChatMessageWithProfile & { status?: string }
+  message: ChatMessageWithProfile
   showHeader: boolean
   isOwn: boolean
 }) {
   const isImage = message.file_type?.startsWith('image/')
   const status = message.status || 'sent'
+  const isRequestIntro = message.message_kind === 'request_intro'
 
   return (
     <div className={`flex w-full ${isOwn ? 'justify-end' : 'justify-start'} ${showHeader ? 'mt-4' : 'mt-1'}`}>
@@ -506,10 +531,17 @@ function MessageBubble({
 
           {/* Bubble core */}
           <div className={`relative px-4 py-2.5 rounded-2xl shadow-sm overflow-hidden text-[15px] leading-relaxed ${
-            isOwn 
-              ? 'bg-primary text-primary-foreground rounded-tr-sm' 
-              : 'bg-card border border-border/50 rounded-tl-sm text-card-foreground'
+            isRequestIntro
+              ? 'bg-muted border border-border/60 text-foreground'
+              : isOwn 
+                ? 'bg-primary text-primary-foreground rounded-tr-sm' 
+                : 'bg-card border border-border/50 rounded-tl-sm text-card-foreground'
           }`}>
+            {isRequestIntro && (
+              <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                Request Message
+              </div>
+            )}
             {message.file_url && isImage ? (
               <div className="my-1 cursor-pointer">
                 <img
@@ -524,7 +556,7 @@ function MessageBubble({
                 target="_blank"
                 rel="noopener noreferrer"
                 className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl transition-colors my-1 ${
-                  isOwn ? 'bg-primary-foreground/10 hover:bg-primary-foreground/20' : 'bg-muted hover:bg-accent'
+                  isOwn && !isRequestIntro ? 'bg-primary-foreground/10 hover:bg-primary-foreground/20' : 'bg-background/70 hover:bg-accent'
                 }`}
               >
                 {message.file_type?.startsWith('image/') ? (

@@ -6,6 +6,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { getInitials, formatRelativeTime } from '@/lib/utils'
 import type { ActivityWithProfile, TeamMemberWithProfile } from '@/types/database'
+import type { PostgrestError } from '@supabase/supabase-js'
 import {
   MessageSquare,
   FileText,
@@ -63,10 +64,21 @@ export function DashboardView() {
   const { data: stats } = useQuery({
     queryKey: ['team-stats', currentTeam?.id],
     queryFn: async () => {
+      const { data: channelRows, error: channelError } = await supabase
+        .from('channels')
+        .select('id')
+        .eq('team_id', currentTeam!.id)
+
+      if (channelError) throw channelError
+
+      const channelIds = ((channelRows ?? []) as Array<{ id: string }>).map((channel) => channel.id)
+
       const [channels, notes, messages] = await Promise.all([
         supabase.from('channels').select('id', { count: 'exact', head: true }).eq('team_id', currentTeam!.id),
         supabase.from('notes').select('id', { count: 'exact', head: true }).eq('team_id', currentTeam!.id),
-        supabase.from('messages').select('id', { count: 'exact', head: true }).eq('channel_id', 'any'),
+        channelIds.length > 0
+          ? supabase.from('messages').select('id', { count: 'exact', head: true }).in('channel_id', channelIds)
+          : Promise.resolve({ count: 0, data: null, error: null as PostgrestError | null }),
       ])
       return {
         channels: channels.count ?? 0,
@@ -85,7 +97,7 @@ export function DashboardView() {
           <div className="w-20 h-20 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto">
             <Users className="w-10 h-10 text-primary" />
           </div>
-          <h2 className="text-2xl font-bold">Welcome to Pusdalops-IT</h2>
+          <h2 className="text-2xl font-bold">Welcome to Lumen: Teams</h2>
           <p className="text-muted-foreground max-w-md">
             Create or join a team to get started with collaboration.
           </p>

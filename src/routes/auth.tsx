@@ -64,10 +64,10 @@ export function AuthPage() {
             <Zap className="w-8 h-8 text-primary" />
           </div>
           <h1 className="text-3xl font-bold tracking-tight bg-linear-to-r from-primary via-chart-4 to-chart-2 bg-clip-text text-transparent">
-            Pusdalops-IT
+            LUMEN
           </h1>
           <p className="text-muted-foreground mt-2 text-sm">
-            Platform Kolaborasi Tim IT
+            Chats, Teams, and Tasks in one place.
           </p>
         </div>
 

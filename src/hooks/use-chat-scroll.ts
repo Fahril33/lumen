@@ -1,60 +1,67 @@
-import { useState, useEffect, type RefObject } from 'react'
+import { useState, useEffect, useCallback, useRef, type RefObject } from 'react'
 
 export function useChatScroll(
+  scrollAreaRef: RefObject<HTMLDivElement | null>,
   bottomRef: RefObject<HTMLDivElement | null>,
   activeChatId: string | undefined,
   messagesCount: number,
-  markAsRead: () => void
+  isMessagesLoading: boolean
 ) {
   const [isAtBottom, setIsAtBottom] = useState(true)
+  const [distanceFromBottom, setDistanceFromBottom] = useState(0)
+  const pendingInitialScrollChatIdRef = useRef<string | null>(null)
 
-  // Track if user is at the bottom of the chat view
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const [entry] = entries
-        // As long as the bottom ref is slightly visible, consider it 'at bottom'
-        setIsAtBottom(entry.isIntersecting)
-      },
-      { 
-        root: null, 
-        rootMargin: '0px 0px 50px 0px', // Trigger even if 50px away from bottom
-        threshold: 0 
-      }
-    )
+  const getViewport = useCallback(() => {
+    return scrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]') as HTMLDivElement | null
+  }, [scrollAreaRef])
 
-    if (bottomRef.current) {
-      observer.observe(bottomRef.current)
-    }
-
-    return () => observer.disconnect()
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
+    bottomRef.current?.scrollIntoView({ behavior })
   }, [bottomRef])
 
-  // 1. Initial Load: When user opens a new chat, force scroll to bottom and mark as read immediately
+  const updateScrollState = useCallback(() => {
+    const viewport = getViewport()
+    if (!viewport) return
+
+    const nextDistance = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight
+    setDistanceFromBottom(nextDistance)
+    setIsAtBottom(nextDistance < 80)
+  }, [getViewport])
+
   useEffect(() => {
-    if (activeChatId) {
-      const timer = setTimeout(() => {
-        bottomRef.current?.scrollIntoView({ behavior: 'instant' as ScrollBehavior })
-        markAsRead()
-      }, 50) // Tiny delay to ensure DOM is painted
-      return () => clearTimeout(timer)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    pendingInitialScrollChatIdRef.current = activeChatId ?? null
   }, [activeChatId])
 
-  // 2. Incoming Messages or Manual Scroll Down: 
-  // If the user receives a message while at the bottom, OR scrolls to the bottom
   useEffect(() => {
-    if (activeChatId && isAtBottom && messagesCount > 0) {
-      // Small timeout to let React render the new message before scrolling down
-      const timer = setTimeout(() => {
-        bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-        markAsRead()
-      }, 50)
-      return () => clearTimeout(timer)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messagesCount, isAtBottom, activeChatId])
+    const viewport = getViewport()
+    if (!viewport) return
 
-  return { isAtBottom }
+    const handleScroll = () => updateScrollState()
+
+    handleScroll()
+    viewport.addEventListener('scroll', handleScroll, { passive: true })
+
+    return () => {
+      viewport.removeEventListener('scroll', handleScroll)
+    }
+  }, [activeChatId, messagesCount, getViewport, updateScrollState])
+
+  useEffect(() => {
+    if (!activeChatId || isMessagesLoading) return
+    if (pendingInitialScrollChatIdRef.current !== activeChatId) return
+
+    const timer = setTimeout(() => {
+      scrollToBottom('instant' as ScrollBehavior)
+      updateScrollState()
+      pendingInitialScrollChatIdRef.current = null
+    }, 50)
+
+    return () => clearTimeout(timer)
+  }, [activeChatId, isMessagesLoading, messagesCount, scrollToBottom, updateScrollState])
+
+  return {
+    isAtBottom,
+    distanceFromBottom,
+    scrollToBottom,
+  }
 }
