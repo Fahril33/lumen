@@ -8,24 +8,25 @@ Pusdalops-IT adalah platform kolaborasi real-time untuk tim IT yang mencakup kom
 
 ## 🚀 Tech Stack
 
-| Category | Technology |
-|----------|-----------|
-| **Frontend** | React 18, TypeScript, Vite |
-| **Styling** | Tailwind CSS v4, shadcn/ui components |
-| **Icons** | Lucide React |
-| **Backend** | Supabase (Auth, PostgreSQL, Realtime, Storage) |
-| **State Management** | Zustand |
-| **Data Fetching** | TanStack Query v5 |
-| **Rich Text Editor** | Tiptap |
-| **Drag & Drop** | dnd-kit |
-| **Notifications** | Sonner |
-| **Utilities** | date-fns, uuid |
+| Category             | Technology                                     |
+| -------------------- | ---------------------------------------------- |
+| **Frontend**         | React 18, TypeScript, Vite                     |
+| **Styling**          | Tailwind CSS v4, shadcn/ui components          |
+| **Icons**            | Lucide React                                   |
+| **Backend**          | Supabase (Auth, PostgreSQL, Realtime, Storage) |
+| **State Management** | Zustand                                        |
+| **Data Fetching**    | TanStack Query v5                              |
+| **Rich Text Editor** | Tiptap                                         |
+| **Drag & Drop**      | dnd-kit                                        |
+| **Notifications**    | Sonner                                         |
+| **Utilities**        | date-fns, uuid                                 |
 
 ---
 
 ## ✨ Fitur Utama
 
 ### 🔐 Authentication
+
 - Login dengan email/password
 - Register dengan profil lengkap
 - Magic link (passwordless login)
@@ -33,12 +34,14 @@ Pusdalops-IT adalah platform kolaborasi real-time untuk tim IT yang mencakup kom
 - Supabase Auth + Row Level Security
 
 ### 👥 Team / Workspace
+
 - Membuat dan bergabung ke multiple teams
 - Invite code untuk undang anggota
 - Setiap team punya data terpisah (chat, notes)
 - Role-based access (owner, admin, member)
 
 ### 💬 Realtime Team Chat
+
 - Channel/room per team
 - Kirim pesan teks + emoji picker
 - Upload file (gambar, dokumen) → Supabase Storage
@@ -47,6 +50,7 @@ Pusdalops-IT adalah platform kolaborasi real-time untuk tim IT yang mencakup kom
 - Delete own messages
 
 ### 📝 Team Notes (Fitur Utama)
+
 - **Interactive Folder Tree:**
   - Hierarki folder & note (nested unlimited)
   - Create folder/note, rename, delete
@@ -66,12 +70,14 @@ Pusdalops-IT adalah platform kolaborasi real-time untuk tim IT yang mencakup kom
   - Notes disimpan sebagai JSON (Tiptap output)
 
 ### 📊 Dashboard
+
 - Overview dengan statistik tim
 - Recent activity feed
 - Daftar team members
 - Invite code display
 
 ### 🎨 UI/UX
+
 - Dark mode (default)
 - Glassmorphism effects
 - Smooth animations & transitions
@@ -85,6 +91,7 @@ Pusdalops-IT adalah platform kolaborasi real-time untuk tim IT yang mencakup kom
 ## 📦 Setup & Installation
 
 ### Prerequisites
+
 - Node.js 18+
 - npm
 - Supabase account ([supabase.com](https://supabase.com))
@@ -92,7 +99,7 @@ Pusdalops-IT adalah platform kolaborasi real-time untuk tim IT yang mencakup kom
 ### 1. Clone & Install
 
 ```bash
-cd d:\Ril\WebApp\Pusdalops
+cd ur directory
 npm install
 ```
 
@@ -117,6 +124,7 @@ VITE_SUPABASE_ANON_KEY=your-anon-key
 ### 4. Enable Supabase Features
 
 Di Supabase Dashboard:
+
 - **Authentication**: Pastikan Email auth sudah aktif
 - **Storage**: Bucket `chat-files` sudah dibuat oleh migration
 - **Realtime**: Sudah di-enable oleh migration
@@ -134,19 +142,21 @@ Buka [http://localhost:5173](http://localhost:5173)
 ## 🗄️ Database Schema
 
 ### Tables
-| Table | Description |
-|-------|-------------|
-| `profiles` | User profiles (extends auth.users) |
-| `teams` | Teams/workspaces |
-| `team_members` | Team membership with roles |
-| `channels` | Chat channels per team |
-| `messages` | Chat messages |
-| `folders` | Hierarchical folder tree |
-| `notes` | Rich text notes (JSON content) |
-| `message_reads` | Read receipts |
-| `activities` | Activity log for dashboard |
+
+| Table           | Description                        |
+| --------------- | ---------------------------------- |
+| `profiles`      | User profiles (extends auth.users) |
+| `teams`         | Teams/workspaces                   |
+| `team_members`  | Team membership with roles         |
+| `channels`      | Chat channels per team             |
+| `messages`      | Chat messages                      |
+| `folders`       | Hierarchical folder tree           |
+| `notes`         | Rich text notes (JSON content)     |
+| `message_reads` | Read receipts                      |
+| `activities`    | Activity log for dashboard         |
 
 ### Key Features
+
 - **UUID primary keys** di semua tabel
 - **`parent_id`** di folders untuk unlimited nesting
 - **`content JSONB`** di notes untuk Tiptap output
@@ -211,18 +221,19 @@ src/
 
 ## 🔧 Scripts
 
-| Command | Description |
-|---------|-------------|
-| `npm run dev` | Start development server |
-| `npm run build` | Build for production |
+| Command           | Description              |
+| ----------------- | ------------------------ |
+| `npm run dev`     | Start development server |
+| `npm run build`   | Build for production     |
 | `npm run preview` | Preview production build |
-| `npm run lint` | Run ESLint |
+| `npm run lint`    | Run ESLint               |
 
 ---
 
 ## 🔒 Security (RLS Policies)
 
 Semua tabel dilindungi Row Level Security:
+
 - **Profiles**: Viewable by authenticated, editable by owner
 - **Teams**: Only visible to members
 - **Channels/Messages**: Only accessible by team members

@@ -314,6 +314,9 @@ export interface Database {
           file_url: string | null
           file_name: string | null
           file_type: string | null
+          status: 'sent' | 'received' | 'read'
+          message_kind: 'standard' | 'request_intro'
+          related_request_id: string | null
           is_edited: boolean
           created_at: string
           updated_at: string
@@ -326,13 +329,52 @@ export interface Database {
           file_url?: string | null
           file_name?: string | null
           file_type?: string | null
+          status?: 'sent' | 'received' | 'read'
+          message_kind?: 'standard' | 'request_intro'
+          related_request_id?: string | null
           is_edited?: boolean
           created_at?: string
           updated_at?: string
         }
         Update: {
           content?: string
+          status?: 'sent' | 'received' | 'read'
+          message_kind?: 'standard' | 'request_intro'
+          related_request_id?: string | null
           is_edited?: boolean
+          updated_at?: string
+        }
+      }
+      chat_requests: {
+        Row: {
+          id: string
+          sender_id: string
+          recipient_id: string
+          initial_message: string
+          status: 'pending' | 'accepted' | 'rejected'
+          chat_id: string | null
+          responded_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          sender_id: string
+          recipient_id: string
+          initial_message: string
+          status?: 'pending' | 'accepted' | 'rejected'
+          chat_id?: string | null
+          responded_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          sender_id?: string
+          recipient_id?: string
+          initial_message?: string
+          status?: 'pending' | 'accepted' | 'rejected'
+          chat_id?: string | null
+          responded_at?: string | null
           updated_at?: string
         }
       }
@@ -353,6 +395,7 @@ export type Friendship = Database['public']['Tables']['friendships']['Row']
 export type ChatInfo = Database['public']['Tables']['chats']['Row']
 export type ChatParticipant = Database['public']['Tables']['chat_participants']['Row']
 export type ChatMessage = Database['public']['Tables']['chat_messages']['Row']
+export type ChatRequest = Database['public']['Tables']['chat_requests']['Row']
 
 export type MessageWithProfile = Message & { profiles: Profile }
 export type ChatMessageWithProfile = ChatMessage & { profiles: Profile }

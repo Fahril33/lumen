@@ -24,6 +24,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { ProfileSettingsDialog } from '@/features/profile/profile-settings-dialog'
 import { getInitials } from '@/lib/utils'
 import {
   MessageSquare,
@@ -52,6 +53,7 @@ export function Sidebar({ activeNav, onNavChange }: SidebarProps) {
   const { createTeamMutation, joinTeamMutation } = useTeams()
   const { chatsQuery } = useChats()
   const [showTeamDialog, setShowTeamDialog] = useState(false)
+  const [showProfileDialog, setShowProfileDialog] = useState(false)
   const [newTeamName, setNewTeamName] = useState('')
   const [newTeamDesc, setNewTeamDesc] = useState('')
   const [inviteCode, setInviteCode] = useState('')
@@ -68,7 +70,7 @@ export function Sidebar({ activeNav, onNavChange }: SidebarProps) {
   const navItems: { key: NavItem; label: string; icon: React.ReactNode; badge?: number }[] = [
     { key: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="w-5 h-5" /> },
     { key: 'chat', label: 'Chat', icon: <MessageSquare className="w-5 h-5" />, badge: unreadCount },
-    { key: 'notes', label: 'Notes', icon: <FileText className="w-5 h-5" /> },
+    { key: 'notes', label: 'Notes (soon)', icon: <FileText className="w-5 h-5" /> },
   ]
 
   return (
@@ -166,7 +168,7 @@ export function Sidebar({ activeNav, onNavChange }: SidebarProps) {
             <DropdownMenuContent className="w-56" align="end" side="top">
               <DropdownMenuLabel>My Account</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setShowProfileDialog(true)}>
                 <Settings className="w-4 h-4 mr-2" />
                 Settings
               </DropdownMenuItem>
@@ -234,6 +236,11 @@ export function Sidebar({ activeNav, onNavChange }: SidebarProps) {
           </Tabs>
         </DialogContent>
       </Dialog>
+
+      <ProfileSettingsDialog
+        open={showProfileDialog}
+        onOpenChange={setShowProfileDialog}
+      />
     </>
   )
 }

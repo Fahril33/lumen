@@ -5,6 +5,21 @@ import { useAuthStore } from '@/stores/auth-store'
 import type { ChatMessageWithProfile } from '@/types/database'
 import { toast } from 'sonner'
 
+interface ChatListMessagePreview {
+  id: string
+  user_id: string
+  content: string
+  created_at: string
+  status?: 'sent' | 'received' | 'read'
+  message_kind?: 'standard' | 'request_intro'
+}
+
+interface ChatListItem {
+  id: string
+  unread_count?: number
+  messages?: ChatListMessagePreview[]
+}
+
 export function useFriendships() {
   const user = useAuthStore((s) => s.user)
   const queryClient = useQueryClient()
@@ -86,7 +101,7 @@ export function useChats() {
         .select(`
           *,
           participants:chat_participants(profiles(*)),
-          messages:chat_messages(id, user_id, content, created_at, status)
+          messages:chat_messages(id, user_id, content, created_at, status, message_kind)
         `)
         .order('created_at', { referencedTable: 'chat_messages', ascending: false })
         .limit(1, { referencedTable: 'chat_messages' })
@@ -304,6 +319,48 @@ export function useChatMessages(chatId: string | undefined) {
       if (!chatId || !user) return
       /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
       await (supabase.rpc as any)('mark_chat_messages_read', { p_chat_id: chatId })
+    },
+    onMutate: async () => {
+      if (!chatId || !user) return
+
+      const previousMessages = queryClient.getQueryData<ChatMessageWithProfile[]>(['chat_messages', chatId])
+      const previousChats = queryClient.getQueryData<ChatListItem[]>(['chats', user.id])
+
+      queryClient.setQueryData<ChatMessageWithProfile[]>(
+        ['chat_messages', chatId],
+        (old) => (old ?? []).map((message) =>
+          message.user_id !== user.id && message.status !== 'read'
+            ? { ...message, status: 'read' as const }
+            : message
+        )
+      )
+
+      queryClient.setQueryData<ChatListItem[]>(
+        ['chats', user.id],
+        (old) => (old ?? []).map((chat) => {
+          if (chat.id !== chatId) return chat
+
+          const nextMessages = (chat.messages ?? []).map((message) =>
+            message.user_id !== user.id && message.status !== 'read'
+              ? { ...message, status: 'read' as const }
+              : message
+          )
+
+          return {
+            ...chat,
+            unread_count: 0,
+            messages: nextMessages,
+          }
+        })
+      )
+
+      return { previousMessages, previousChats }
+    },
+    onError: (_error, _variables, context) => {
+      if (!chatId || !user || !context) return
+
+      queryClient.setQueryData(['chat_messages', chatId], context.previousMessages)
+      queryClient.setQueryData(['chats', user.id], context.previousChats)
     },
     onSuccess: () => {
       // Allow database to settle then refresh UI
