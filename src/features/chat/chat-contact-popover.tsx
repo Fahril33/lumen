@@ -2,6 +2,7 @@ import { Mail, MessageCircle, UserRound } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Skeleton } from '@/components/ui/skeleton'
 import { getInitials } from '@/lib/utils'
 
 interface ChatContactPopoverProps {
@@ -15,10 +16,15 @@ interface ChatContactPopoverProps {
   } | null
   onOpenChat?: (contactId: string) => void
   size?: 'sm' | 'md'
+  isLoading?: boolean
 }
 
-export function ChatContactPopover({ contact, onOpenChat, size = 'md' }: ChatContactPopoverProps) {
+export function ChatContactPopover({ contact, onOpenChat, size = 'md', isLoading }: ChatContactPopoverProps) {
   const avatarSizeClass = size === 'sm' ? 'w-8 h-8' : 'w-10 h-10'
+
+  if (isLoading) {
+    return <Skeleton className={`${avatarSizeClass} rounded-full`} />
+  }
 
   if (!contact) {
     return (

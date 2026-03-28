@@ -7,6 +7,7 @@ import { useNote } from '@/hooks/use-notes'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   Tooltip,
   TooltipContent,
@@ -29,7 +30,6 @@ import {
   Undo,
   Redo,
   Minus,
-  Loader2,
   Save,
   Clock,
 } from 'lucide-react'
@@ -91,8 +91,25 @@ export function NoteEditor({ noteId }: NoteEditorProps) {
 
   if (noteQuery.isLoading) {
     return (
-      <div className="flex-1 flex items-center justify-center">
-        <Loader2 className="w-6 h-6 animate-spin text-primary" />
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="px-6 pt-6 pb-2 space-y-3">
+          <Skeleton className="h-9 w-64" />
+          <Skeleton className="h-4 w-40" />
+        </div>
+        <div className="px-6 py-2">
+          <div className="flex items-center gap-1 rounded-lg bg-muted/50 px-2 py-1">
+            {Array.from({ length: 10 }).map((_, index) => (
+              <Skeleton key={index} className="h-7 w-7" />
+            ))}
+          </div>
+        </div>
+        <Separator />
+        <div className="flex-1 space-y-4 px-6 py-6">
+          <Skeleton className="h-5 w-2/3" />
+          <Skeleton className="h-5 w-full" />
+          <Skeleton className="h-5 w-11/12" />
+          <Skeleton className="h-5 w-4/5" />
+        </div>
       </div>
     )
   }

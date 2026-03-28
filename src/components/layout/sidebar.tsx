@@ -23,6 +23,7 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ProfileSettingsDialog } from '@/features/profile/profile-settings-dialog'
 import { getInitials } from '@/lib/utils'
@@ -50,7 +51,7 @@ interface SidebarProps {
 export function Sidebar({ activeNav, onNavChange }: SidebarProps) {
   const { profile, signOut } = useAuth()
   const { currentTeam, teams, setCurrentTeam } = useTeamStore()
-  const { createTeamMutation, joinTeamMutation } = useTeams()
+  const { teamsQuery, createTeamMutation, joinTeamMutation } = useTeams()
   const { chatsQuery } = useChats()
   const [showTeamDialog, setShowTeamDialog] = useState(false)
   const [showProfileDialog, setShowProfileDialog] = useState(false)
@@ -59,6 +60,8 @@ export function Sidebar({ activeNav, onNavChange }: SidebarProps) {
   const [inviteCode, setInviteCode] = useState('')
 
   const chats = chatsQuery.data ?? []
+  const isProfileLoading = !profile
+  const isTeamsLoading = teamsQuery.isLoading
   /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
   const unreadCount = chats.filter((chat: any) => {
     const lastMsg = chat.messages?.[0]
@@ -81,15 +84,24 @@ export function Sidebar({ activeNav, onNavChange }: SidebarProps) {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="w-full justify-between px-3 h-11 text-left hover:bg-sidebar-accent">
-                <div className="flex items-center gap-2 min-w-0">
-                  <div className="w-7 h-7 rounded-lg bg-primary/20 flex items-center justify-center text-xs font-bold text-primary shrink-0">
-                    {currentTeam ? getInitials(currentTeam.name) : '?'}
+                {isTeamsLoading ? (
+                  <div className="flex w-full items-center gap-2">
+                    <Skeleton className="h-7 w-7 rounded-lg" />
+                    <Skeleton className="h-4 flex-1" />
                   </div>
-                  <span className="truncate font-semibold text-sm">
-                    {currentTeam?.name ?? 'Select Team'}
-                  </span>
-                </div>
-                <ChevronDown className="w-4 h-4 shrink-0 text-muted-foreground" />
+                ) : (
+                  <>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="w-7 h-7 rounded-lg bg-primary/20 flex items-center justify-center text-xs font-bold text-primary shrink-0">
+                        {currentTeam ? getInitials(currentTeam.name) : '?'}
+                      </div>
+                      <span className="truncate font-semibold text-sm">
+                        {currentTeam?.name ?? 'Select Team'}
+                      </span>
+                    </div>
+                    <ChevronDown className="w-4 h-4 shrink-0 text-muted-foreground" />
+                  </>
+                )}
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent className="w-56" align="start">
@@ -155,14 +167,26 @@ export function Sidebar({ activeNav, onNavChange }: SidebarProps) {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="w-full justify-start px-3 h-12 hover:bg-sidebar-accent">
-                <Avatar className="w-8 h-8 mr-3">
-                  <AvatarImage src={profile?.avatar_url ?? undefined} />
-                  <AvatarFallback>{getInitials(profile?.full_name ?? 'U')}</AvatarFallback>
-                </Avatar>
-                <div className="flex flex-col items-start min-w-0">
-                  <span className="text-sm font-medium truncate">{profile?.full_name}</span>
-                  <span className="text-xs text-muted-foreground truncate">{profile?.email}</span>
-                </div>
+                {isProfileLoading ? (
+                  <div className="flex w-full items-center gap-3">
+                    <Skeleton className="h-8 w-8 rounded-full" />
+                    <div className="flex-1 space-y-2">
+                      <Skeleton className="h-4 w-24" />
+                      <Skeleton className="h-3 w-32" />
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <Avatar className="w-8 h-8 mr-3">
+                      <AvatarImage src={profile?.avatar_url ?? undefined} />
+                      <AvatarFallback>{getInitials(profile?.full_name ?? 'U')}</AvatarFallback>
+                    </Avatar>
+                    <div className="flex flex-col items-start min-w-0">
+                      <span className="text-sm font-medium truncate">{profile?.full_name}</span>
+                      <span className="text-xs text-muted-foreground truncate">{profile?.email}</span>
+                    </div>
+                  </>
+                )}
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent className="w-56" align="end" side="top">

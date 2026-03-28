@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { getInitials } from '@/lib/utils'
 import { ChatRequestPopover } from '@/features/chat/chat-request-popover'
@@ -56,6 +57,9 @@ export function ChatView() {
   const chats = useMemo(() => chatsQuery.data ?? [], [chatsQuery.data])
   const friendships = useMemo(() => friendshipsQuery.data ?? [], [friendshipsQuery.data])
   const incomingChatRequests = useMemo(() => chatRequestsQuery.data ?? [], [chatRequestsQuery.data])
+  const isChatListLoading = chatsQuery.isLoading
+  const isFriendListLoading = friendshipsQuery.isLoading
+  const isChatRequestsLoading = chatRequestsQuery.isLoading
 
   const pendingFriendRequests = friendships.filter((f: any) => f.status === 'pending' && f.recipient_id === user?.id)
   const acceptedFriends = friendships.filter((f: any) => f.status === 'accepted')
@@ -211,13 +215,30 @@ export function ChatView() {
                     onReject={handleRejectChatRequest}
                     isPending={respondToChatRequestMutation.isPending}
                     activeRequestId={respondToChatRequestMutation.variables?.requestId}
+                    isLoading={isChatRequestsLoading}
                   />
                   <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setShowNewChat(true)}>
                     <Plus className="w-4 h-4" />
                   </Button>
                 </div>
               </div>
-              {chats.length === 0 ? (
+              {isChatListLoading ? (
+                Array.from({ length: 7 }).map((_, index) => (
+                  <div key={index} className="flex items-center gap-3 rounded-xl p-2">
+                    <Skeleton className="h-10 w-10 rounded-full" />
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <Skeleton className="h-4 w-28" />
+                        <Skeleton className="h-3 w-10" />
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <Skeleton className="h-3 flex-1" />
+                        <Skeleton className="h-5 w-5 rounded-full" />
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : chats.length === 0 ? (
                 <div className="p-4 text-center text-muted-foreground text-sm">No chats yet.</div>
               ) : (
                 chats.map((chat: any) => {
@@ -293,7 +314,20 @@ export function ChatView() {
                 </form>
               </div>
               
-              {pendingFriendRequests.length > 0 && (
+              {isFriendListLoading ? (
+                <div className="space-y-4 px-2">
+                  <Skeleton className="h-8 w-full" />
+                  {Array.from({ length: 5 }).map((_, index) => (
+                    <div key={index} className="flex items-center justify-between rounded-lg p-2">
+                      <div className="flex items-center gap-3">
+                        <Skeleton className="h-8 w-8 rounded-full" />
+                        <Skeleton className="h-4 w-28" />
+                      </div>
+                      <Skeleton className="h-8 w-8 rounded-md" />
+                    </div>
+                  ))}
+                </div>
+              ) : pendingFriendRequests.length > 0 && (
                 <div>
                   <div className="px-2 text-xs font-semibold text-muted-foreground uppercase mb-2">Friend Requests</div>
                   {pendingFriendRequests.map((req: any) => (
@@ -319,7 +353,20 @@ export function ChatView() {
 
               <div>
                 <div className="px-2 text-xs font-semibold text-muted-foreground uppercase mb-2">My Friends</div>
-                {acceptedFriends.length === 0 ? (
+                {isFriendListLoading ? (
+                  Array.from({ length: 6 }).map((_, index) => (
+                    <div key={index} className="mx-2 flex items-center justify-between rounded-lg p-2">
+                      <div className="flex items-center gap-3">
+                        <Skeleton className="h-8 w-8 rounded-full" />
+                        <div className="space-y-2">
+                          <Skeleton className="h-4 w-28" />
+                          <Skeleton className="h-3 w-20" />
+                        </div>
+                      </div>
+                      <Skeleton className="h-8 w-8 rounded-md" />
+                    </div>
+                  ))
+                ) : acceptedFriends.length === 0 ? (
                   <div className="p-4 text-center text-muted-foreground text-sm">No friends yet. Add some!</div>
                 ) : (
                   acceptedFriends.map((f: any) => {
@@ -379,7 +426,20 @@ export function ChatView() {
 
             <ScrollArea ref={chatScrollAreaRef} className="flex-1 px-4 md:px-6 z-10">
               <div className="py-6 space-y-6">
-                {messages.length === 0 && (
+                {isMessagesLoading ? (
+                  Array.from({ length: 8 }).map((_, index) => (
+                    <div key={index} className={`flex w-full ${index % 2 === 0 ? 'justify-start' : 'justify-end'}`}>
+                      <div className="flex max-w-[75%] gap-2">
+                        {index % 2 === 0 ? <Skeleton className="h-8 w-8 rounded-full" /> : null}
+                        <div className="space-y-2">
+                          {index % 2 === 0 ? <Skeleton className="h-3 w-20" /> : null}
+                          <Skeleton className={`h-16 rounded-2xl ${index % 2 === 0 ? 'w-64' : 'w-52'}`} />
+                          <Skeleton className="h-3 w-10" />
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : messages.length === 0 && (
                   <div className="text-center py-12">
                     <p className="text-muted-foreground text-sm bg-muted/50 inline-block px-3 py-1 rounded-full">This is the beginning of your chat</p>
                   </div>
@@ -488,6 +548,7 @@ export function ChatView() {
         acceptedFriends={acceptedFriends}
         currentUserId={user?.id}
         onStartChat={handleStartChat}
+        isLoading={isFriendListLoading}
       />
     </div>
   )

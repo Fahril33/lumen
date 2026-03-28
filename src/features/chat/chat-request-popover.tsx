@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Skeleton } from '@/components/ui/skeleton'
 import { formatRelativeTime, getInitials } from '@/lib/utils'
 
 interface ChatRequestItem {
@@ -22,6 +23,7 @@ interface ChatRequestPopoverProps {
   onReject: (requestId: string) => void
   isPending?: boolean
   activeRequestId?: string
+  isLoading?: boolean
 }
 
 export function ChatRequestPopover({
@@ -30,6 +32,7 @@ export function ChatRequestPopover({
   onReject,
   isPending,
   activeRequestId,
+  isLoading,
 }: ChatRequestPopoverProps) {
   return (
     <Popover>
@@ -53,7 +56,29 @@ export function ChatRequestPopover({
 
         <ScrollArea className="max-h-[420px]">
           <div className="p-2">
-            {requests.length === 0 ? (
+            {isLoading ? (
+              Array.from({ length: 3 }).map((_, index) => (
+                <div key={index} className="rounded-xl p-3">
+                  <div className="flex items-start gap-3">
+                    <Skeleton className="h-10 w-10 rounded-full" />
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1 space-y-2">
+                          <Skeleton className="h-4 w-28" />
+                          <Skeleton className="h-3 w-20" />
+                        </div>
+                        <Skeleton className="h-3 w-12" />
+                      </div>
+                      <Skeleton className="h-16 w-full rounded-lg" />
+                      <div className="flex gap-2">
+                        <Skeleton className="h-9 flex-1 rounded-md" />
+                        <Skeleton className="h-9 flex-1 rounded-md" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))
+            ) : requests.length === 0 ? (
               <div className="px-3 py-8 text-center text-sm text-muted-foreground">
                 No pending chat requests.
               </div>

@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import { useProfileSettings } from '@/hooks/use-profile'
 import { getInitials } from '@/lib/utils'
@@ -33,9 +34,61 @@ export function ProfileSettingsDialog({ open, onOpenChange }: ProfileSettingsDia
             profile={profile}
             onClose={() => onOpenChange(false)}
           />
+        ) : open ? (
+          <ProfileSettingsSkeleton />
         ) : null}
       </DialogContent>
     </Dialog>
+  )
+}
+
+function ProfileSettingsSkeleton() {
+  return (
+    <div className="space-y-6">
+      <div className="flex items-start gap-4 rounded-2xl border border-border/50 bg-card/40 p-4">
+        <Skeleton className="h-16 w-16 rounded-full" />
+        <div className="flex-1 space-y-3">
+          <div className="space-y-2">
+            <Skeleton className="h-4 w-20" />
+            <Skeleton className="h-10 w-full" />
+          </div>
+          <div className="flex gap-2">
+            <Skeleton className="h-10 w-32" />
+            <Skeleton className="h-10 w-20" />
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-2 sm:col-span-2">
+          <Skeleton className="h-4 w-20" />
+          <Skeleton className="h-10 w-full" />
+        </div>
+        <div className="space-y-2">
+          <Skeleton className="h-4 w-20" />
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-3 w-40" />
+        </div>
+        <div className="space-y-2">
+          <Skeleton className="h-4 w-16" />
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-3 w-36" />
+        </div>
+      </div>
+
+      <div className="flex items-start justify-between gap-4 rounded-2xl border border-border/50 bg-card/40 p-4">
+        <div className="space-y-2">
+          <Skeleton className="h-4 w-36" />
+          <Skeleton className="h-3 w-48" />
+        </div>
+        <Skeleton className="h-6 w-11 rounded-full" />
+      </div>
+
+      <DialogFooter>
+        <Skeleton className="h-10 w-24" />
+        <Skeleton className="h-10 w-32" />
+      </DialogFooter>
+    </div>
   )
 }
 

@@ -21,6 +21,7 @@ import type { FolderTreeItem } from '@/types/database'
 interface FolderTreeProps {
   items: FolderTreeItem[]
   searchQuery: string
+  isLoading?: boolean
   onCreateFolder: (parentId: string | null) => void
   onCreateNote: (folderId: string | null) => void
   onRenameFolder: (id: string, name: string) => void
@@ -34,6 +35,7 @@ interface FolderTreeProps {
 export function FolderTree({
   items,
   searchQuery,
+  isLoading,
   onCreateFolder,
   onCreateNote,
   onRenameFolder,
@@ -89,6 +91,22 @@ export function FolderTree({
   const displayItems = filteredItems(items)
   const flat = flatItems(displayItems)
   const ids = flat.map((i) => i.id)
+
+  if (isLoading) {
+    return (
+      <div className="space-y-2 px-2 py-1">
+        {Array.from({ length: 7 }).map((_, index) => (
+          <div key={index} className="flex items-center gap-2 rounded-md px-2 py-2">
+            <div className="h-4 w-4 animate-pulse rounded bg-muted/70" />
+            <div
+              className="h-4 animate-pulse rounded bg-muted/70"
+              style={{ width: `${120 - Math.min(index * 6, 40)}px` }}
+            />
+          </div>
+        ))}
+      </div>
+    )
+  }
 
   function findItem(id: string, items: FolderTreeItem[]): FolderTreeItem | null {
     for (const item of items) {

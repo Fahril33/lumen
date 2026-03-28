@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { useChatRequestRecipientLookup, useCreateChatRequest } from '@/hooks/use-chat-requests'
@@ -30,6 +31,7 @@ interface NewChatDialogProps {
   acceptedFriends: AcceptedFriend[]
   currentUserId?: string
   onStartChat: (friendId: string) => void
+  isLoading?: boolean
 }
 
 export function NewChatDialog({
@@ -38,6 +40,7 @@ export function NewChatDialog({
   acceptedFriends,
   currentUserId,
   onStartChat,
+  isLoading,
 }: NewChatDialogProps) {
   const [tab, setTab] = useState<'friends' | 'contact'>('friends')
   const [username, setUsername] = useState('')
@@ -86,7 +89,19 @@ export function NewChatDialog({
           <TabsContent value="friends" className="pt-4">
             <ScrollArea className="max-h-72">
               <div className="space-y-1">
-                {sortedFriends.length === 0 ? (
+                {isLoading ? (
+                  Array.from({ length: 5 }).map((_, index) => (
+                    <div key={index} className="w-full rounded-lg p-2">
+                      <div className="flex items-center gap-3">
+                        <Skeleton className="h-10 w-10 rounded-full" />
+                        <div className="min-w-0 flex-1 space-y-2">
+                          <Skeleton className="h-4 w-32" />
+                          <Skeleton className="h-3 w-20" />
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : sortedFriends.length === 0 ? (
                   <p className="py-6 text-center text-sm text-muted-foreground">
                     No friends found.
                   </p>
@@ -146,9 +161,12 @@ export function NewChatDialog({
                   Enter a username to check whether the profile is available for new chat requests.
                 </p>
               ) : lookupQuery.isFetching ? (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Checking profile availability...
+                <div className="flex items-center gap-3">
+                  <Skeleton className="h-10 w-10 rounded-full" />
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <Skeleton className="h-4 w-28" />
+                    <Skeleton className="h-3 w-20" />
+                  </div>
                 </div>
               ) : lookupResult?.state === 'available' ? (
                 <div className="flex items-center gap-3">

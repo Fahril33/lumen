@@ -8,12 +8,15 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Skeleton } from '@/components/ui/skeleton'
 import { FolderPlus, FilePlus, Search, FileText } from 'lucide-react'
 
 export function NotesView() {
   const { currentTeam } = useTeamStore()
   const { activeNoteId, searchQuery, setSearchQuery } = useNotesStore()
   const {
+    foldersQuery,
+    notesQuery,
     tree,
     createFolderMutation,
     createNoteMutation,
@@ -24,6 +27,7 @@ export function NotesView() {
   } = useFolders(currentTeam?.id)
 
   const [treeWidth] = useState(300)
+  const isTreeLoading = foldersQuery.isLoading || notesQuery.isLoading
 
   if (!currentTeam) {
     return (
@@ -52,6 +56,7 @@ export function NotesView() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-9 h-8 text-sm bg-muted/50 border-none"
+              disabled={isTreeLoading}
             />
           </div>
           <div className="flex gap-1">
@@ -60,6 +65,7 @@ export function NotesView() {
               size="sm"
               className="flex-1 h-7 text-xs gap-1.5"
               onClick={() => createFolderMutation.mutate({ name: 'New Folder' })}
+              disabled={isTreeLoading}
             >
               <FolderPlus className="w-3.5 h-3.5" />
               Folder
@@ -69,6 +75,7 @@ export function NotesView() {
               size="sm"
               className="flex-1 h-7 text-xs gap-1.5"
               onClick={() => createNoteMutation.mutate({})}
+              disabled={isTreeLoading}
             >
               <FilePlus className="w-3.5 h-3.5" />
               Note
@@ -84,6 +91,7 @@ export function NotesView() {
             <FolderTree
               items={tree}
               searchQuery={searchQuery}
+              isLoading={isTreeLoading}
               onCreateFolder={(parentId) => createFolderMutation.mutate({ name: 'New Folder', parentId })}
               onCreateNote={(folderId) => createNoteMutation.mutate({ folderId })}
               onRenameFolder={(id, name) => updateFolderMutation.mutate({ id, updates: { name } })}
@@ -110,10 +118,19 @@ export function NotesView() {
         ) : (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center space-y-3">
-              <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto">
-                <FileText className="w-8 h-8 text-primary/50" />
-              </div>
-              <p className="text-muted-foreground text-sm">Select or create a note to start editing</p>
+              {isTreeLoading ? (
+                <div className="space-y-4">
+                  <Skeleton className="mx-auto h-16 w-16 rounded-2xl" />
+                  <Skeleton className="h-4 w-56" />
+                </div>
+              ) : (
+                <>
+                  <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto">
+                    <FileText className="w-8 h-8 text-primary/50" />
+                  </div>
+                  <p className="text-muted-foreground text-sm">Select or create a note to start editing</p>
+                </>
+              )}
             </div>
           </div>
         )}
