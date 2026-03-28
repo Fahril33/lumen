@@ -32,31 +32,20 @@ export function useTeams() {
   const createTeamMutation = useMutation({
     mutationFn: async ({ name, description }: { name: string; description?: string }) => {
       /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
-      const { data: team, error } = await (supabase.from('teams') as any)
-        .insert({ name, description: description ?? '', created_by: user!.id })
-        .select()
-        .single()
+      const { data: teamId, error } = await (supabase.rpc as any)('create_team_with_owner', {
+        p_name: name,
+        p_description: description ?? '',
+      })
       if (error) throw error
 
-      // Add creator as owner
       /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
-      await (supabase.from('team_members') as any).insert({
-        team_id: team.id,
-        user_id: user!.id,
-        role: 'owner',
-      })
+      const { data: team, error: teamError } = await (supabase.from('teams') as any)
+        .select('*')
+        .eq('id', teamId)
+        .single()
+      if (teamError) throw teamError
 
-      // Create default channel
-      /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
-      await (supabase.from('channels') as any).insert({
-        team_id: team.id,
-        name: 'general',
-        description: 'General discussion',
-        is_default: true,
-        created_by: user!.id,
-      })
-
-      return team
+      return team as Team
     },
     onSuccess: (team) => {
       addTeam(team)
@@ -72,23 +61,19 @@ export function useTeams() {
   const joinTeamMutation = useMutation({
     mutationFn: async (inviteCode: string) => {
       /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
-      const { data: team, error: teamError } = await (supabase.from('teams') as any)
-        .select('*')
-        .eq('invite_code', inviteCode)
-        .single()
-      if (teamError) throw new Error('Invalid invite code')
+      const { data: teamId, error } = await (supabase.rpc as any)('join_team_by_invite_code', {
+        p_invite_code: inviteCode.trim(),
+      })
+      if (error) throw error
 
       /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
-      const { error } = await (supabase.from('team_members') as any).insert({
-        team_id: team.id,
-        user_id: user!.id,
-        role: 'member',
-      })
-      if (error) {
-        if (error.code === '23505') throw new Error('You are already a member')
-        throw error
-      }
-      return team
+      const { data: team, error: teamError } = await (supabase.from('teams') as any)
+        .select('*')
+        .eq('id', teamId)
+        .single()
+      if (teamError) throw teamError
+
+      return team as Team
     },
     onSuccess: (team) => {
       addTeam(team)

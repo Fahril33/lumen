@@ -1,7 +1,7 @@
-import { useState } from 'react'
 import { useTeamStore } from '@/stores/team-store'
 import { useNotesStore } from '@/stores/notes-store'
 import { useFolders } from '@/hooks/use-notes'
+import { AdaptiveFeatureLayout } from '@/components/layout/adaptive-feature-layout'
 import { FolderTree } from '@/components/notes/folder-tree'
 import { NoteEditor } from '@/components/notes/note-editor'
 import { Button } from '@/components/ui/button'
@@ -13,7 +13,7 @@ import { FolderPlus, FilePlus, Search, FileText } from 'lucide-react'
 
 export function NotesView() {
   const { currentTeam } = useTeamStore()
-  const { activeNoteId, searchQuery, setSearchQuery } = useNotesStore()
+  const { activeNoteId, searchQuery, setActiveNoteId, setSearchQuery } = useNotesStore()
   const {
     foldersQuery,
     notesQuery,
@@ -26,7 +26,6 @@ export function NotesView() {
     deleteNoteMutation,
   } = useFolders(currentTeam?.id)
 
-  const [treeWidth] = useState(300)
   const isTreeLoading = foldersQuery.isLoading || notesQuery.isLoading
 
   if (!currentTeam) {
@@ -41,11 +40,10 @@ export function NotesView() {
   }
 
   return (
-    <div className="flex-1 flex h-full overflow-hidden">
-      {/* Folder tree sidebar */}
+    <AdaptiveFeatureLayout
+      secondary={
       <div
-        className="flex flex-col border-r border-border bg-card/30"
-        style={{ width: treeWidth }}
+        className="flex h-full w-full flex-col"
       >
         {/* Search & actions */}
         <div className="p-3 space-y-2">
@@ -110,31 +108,37 @@ export function NotesView() {
           </div>
         </ScrollArea>
       </div>
-
-      {/* Note editor */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {activeNoteId ? (
-          <NoteEditor noteId={activeNoteId} />
-        ) : (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="text-center space-y-3">
-              {isTreeLoading ? (
-                <div className="space-y-4">
-                  <Skeleton className="mx-auto h-16 w-16 rounded-2xl" />
-                  <Skeleton className="h-4 w-56" />
-                </div>
-              ) : (
-                <>
-                  <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto">
-                    <FileText className="w-8 h-8 text-primary/50" />
+      }
+      detail={
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {activeNoteId ? (
+            <NoteEditor noteId={activeNoteId} />
+          ) : (
+            <div className="flex-1 flex items-center justify-center">
+              <div className="text-center space-y-3">
+                {isTreeLoading ? (
+                  <div className="space-y-4">
+                    <Skeleton className="mx-auto h-16 w-16 rounded-2xl" />
+                    <Skeleton className="h-4 w-56" />
                   </div>
-                  <p className="text-muted-foreground text-sm">Select or create a note to start editing</p>
-                </>
-              )}
+                ) : (
+                  <>
+                    <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto">
+                      <FileText className="w-8 h-8 text-primary/50" />
+                    </div>
+                    <p className="text-muted-foreground text-sm">Select or create a note to start editing</p>
+                  </>
+                )}
+              </div>
             </div>
-          </div>
-        )}
-      </div>
-    </div>
+          )}
+        </div>
+      }
+      showDetail={!!activeNoteId}
+      onBack={() => setActiveNoteId(null)}
+      detailTitle="Note"
+      secondaryWidthClassName="w-[clamp(19rem,26vw,24rem)]"
+      secondaryClassName="bg-card/30"
+    />
   )
 }

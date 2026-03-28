@@ -4,6 +4,8 @@ import { useAuthStore } from '@/stores/auth-store'
 import { useChatRequests } from '@/hooks/use-chat-requests'
 import { useFriendships, useChats, useChatMessages } from '@/hooks/use-friend-chat'
 import { useChatScroll } from '@/hooks/use-chat-scroll'
+import { useResponsiveLayout } from '@/hooks/use-responsive-layout'
+import { useAppShellStore } from '@/stores/app-shell-store'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -29,6 +31,7 @@ import {
   UserPlus,
   Check,
   ArrowDown,
+  ChevronLeft,
   X
 } from 'lucide-react'
 import type { ChatMessageWithProfile } from '@/types/database'
@@ -37,6 +40,8 @@ const EMOJI_LIST = ['👍', '❤️', '😂', '🎉', '🔥', '✅', '👀', '�
 
 export function ChatView() {
   const user = useAuthStore((s) => s.user)
+  const { isDesktop, isMobile } = useResponsiveLayout()
+  const { setMobileBottomNavVisible } = useAppShellStore()
   const [activeTab, setActiveTab] = useState<'chats'|'friends'>('chats')
   const [activeChatId, setActiveChatId] = useState<string | null>(null)
   
@@ -95,6 +100,19 @@ export function ChatView() {
 
     markAsRead.mutate()
   }, [activeChatId, hasUnreadIncomingMessages, isAtBottom, isMessagesLoading, markAsRead])
+
+  useEffect(() => {
+    if (!isMobile) {
+      setMobileBottomNavVisible(true)
+      return
+    }
+
+    setMobileBottomNavVisible(!activeChat)
+
+    return () => {
+      setMobileBottomNavVisible(true)
+    }
+  }, [activeChat, isMobile, setMobileBottomNavVisible])
 
   function getChatName(chat: any) {
     if (chat.is_group) return chat.name || 'Group Chat'
@@ -186,7 +204,11 @@ export function ChatView() {
 
   return (
     <div className="flex-1 flex h-full overflow-hidden relative">
-      <div className="w-80 border-r border-border bg-card/30 flex flex-col shrink-0">
+      <div
+        className={`border-r border-border bg-card/30 shrink-0 ${
+          !isDesktop && activeChat ? 'hidden' : 'flex'
+        } ${isDesktop ? 'w-80' : 'w-full'} flex-col`}
+      >
         <div className="p-3 border-b border-border flex flex-col gap-3">
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'chats'|'friends')} className="w-full">
             <TabsList className="grid w-full grid-cols-2">
@@ -397,7 +419,11 @@ export function ChatView() {
         </ScrollArea>
       </div>
 
-      <div className="flex-1 flex flex-col bg-background relative z-10">
+      <div
+        className={`bg-background relative z-10 ${
+          !isDesktop && !activeChat ? 'hidden' : 'flex flex-1 min-w-0 flex-col'
+        }`}
+      >
         {!activeChat ? (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center space-y-4 max-w-sm px-4">
@@ -411,20 +437,39 @@ export function ChatView() {
           </div>
         ) : (
           <>
-            <div className="h-16 border-b border-border px-5 flex items-center gap-4 bg-card/40 backdrop-blur shrink-0 shadow-sm z-20">
+            <div className="sticky top-0 h-16 border-b border-border px-4 md:px-5 flex items-center gap-3 md:gap-4 bg-card/85 backdrop-blur shrink-0 shadow-sm z-30 [padding-top:max(env(safe-area-inset-top),0px)]">
+              {!isDesktop ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9 shrink-0 rounded-full"
+                  onClick={() => setActiveChatId(null)}
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </Button>
+              ) : null}
               <Avatar className="w-10 h-10 border border-border/50">
                 <AvatarImage src={getChatAvatar(activeChat) ?? undefined} />
                 <AvatarFallback>{getInitials(getChatName(activeChat))}</AvatarFallback>
               </Avatar>
-              <div>
-                <h2 className="font-semibold text-base leading-tight">{getChatName(activeChat)}</h2>
+              <div className="min-w-0">
+                <h2 className="font-semibold text-base leading-tight truncate">{getChatName(activeChat)}</h2>
                 <p className="text-xs text-muted-foreground">
                   {activeChat.is_group ? `${activeChat.participants?.length} participants` : 'Friend'}
                 </p>
               </div>
             </div>
 
-            <ScrollArea ref={chatScrollAreaRef} className="flex-1 px-4 md:px-6 z-10">
+            <ScrollArea
+              ref={chatScrollAreaRef}
+              className="min-h-0 flex-1 px-4 md:px-6 z-10"
+              style={{
+                height: isDesktop
+                  ? undefined
+                  : 'calc(var(--app-height) - 4rem - 5.5rem - env(safe-area-inset-top) - env(safe-area-inset-bottom))',
+              }}
+            >
               <div className="py-6 space-y-6">
                 {isMessagesLoading ? (
                   Array.from({ length: 8 }).map((_, index) => (
@@ -474,7 +519,7 @@ export function ChatView() {
               )}
             </ScrollArea>
 
-            <div className="p-4 bg-card/40 border-t border-border shrink-0 z-20">
+            <div className="sticky bottom-0 border-t border-border bg-card/88 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] backdrop-blur shrink-0 z-30">
               <form onSubmit={handleSend} className="max-w-4xl mx-auto flex items-end gap-2 bg-background border border-border rounded-2xl p-1.5 shadow-sm focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20 transition-all">
                 <input
                   ref={fileInputRef}

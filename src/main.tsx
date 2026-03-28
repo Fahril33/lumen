@@ -25,9 +25,9 @@ createRoot(document.getElementById('root')!).render(
           position="bottom-right"
           toastOptions={{
             style: {
-              background: 'oklch(0.17 0.005 285)',
-              border: '1px solid oklch(0.25 0.01 280)',
-              color: 'oklch(0.985 0 0)',
+              background: 'var(--color-card)',
+              border: '1px solid var(--color-border)',
+              color: 'var(--color-card-foreground)',
             },
           }}
           richColors
