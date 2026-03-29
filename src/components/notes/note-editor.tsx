@@ -138,62 +138,64 @@ export function NoteEditor({ noteId }: NoteEditorProps) {
   ]
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
-      {/* Title */}
-      <div className="px-6 pt-6 pb-2">
-        <Input
-          ref={titleRef}
-          defaultValue={note.title}
-          onChange={handleTitleChange}
-          className="text-2xl font-bold border-none px-0 h-auto bg-transparent focus-visible:ring-0 placeholder:text-muted-foreground/40"
-          placeholder="Untitled"
-        />
-        <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
-          <span className="flex items-center gap-1">
-            <Clock className="w-3 h-3" />
-            Updated {formatRelativeTime(note.updated_at)}
-          </span>
-          {saveNoteMutation.isPending && (
-            <span className="flex items-center gap-1 text-primary">
-              <Save className="w-3 h-3" />
-              Saving...
+    <div className="notes-editor-container flex flex-col flex-1 overflow-hidden">
+      <div className="sticky top-0 z-20 border-b border-border bg-background/92 backdrop-blur">
+        <div className="px-4 pt-4 pb-2 md:px-6 md:pt-6">
+          <Input
+            ref={titleRef}
+            defaultValue={note.title}
+            onChange={handleTitleChange}
+            className="text-2xl font-bold border-none px-0 h-auto bg-transparent focus-visible:ring-0 placeholder:text-muted-foreground/40"
+            placeholder="Untitled"
+          />
+          <div className="mt-2 flex items-center gap-3 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1">
+              <Clock className="w-3 h-3" />
+              Updated {formatRelativeTime(note.updated_at)}
             </span>
-          )}
+            {saveNoteMutation.isPending && (
+              <span className="flex items-center gap-1 text-primary">
+                <Save className="w-3 h-3" />
+                Saving...
+              </span>
+            )}
+          </div>
         </div>
-      </div>
 
-      {/* Toolbar */}
-      <div className="px-6 py-2">
-        <div className="flex items-center gap-0.5 flex-wrap bg-muted/50 rounded-lg px-2 py-1">
-          {toolbarButtons.map((btn, i) => {
-            if (btn === 'separator') {
-              return <Separator key={i} orientation="vertical" className="h-5 mx-1" />
-            }
-            const b = btn as { icon: React.ReactNode; label: string; action: () => void; active: boolean | undefined }
-            return (
-              <Tooltip key={i}>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className={`h-7 w-7 ${b.active ? 'bg-accent text-accent-foreground' : ''}`}
-                    onClick={b.action}
-                  >
-                    {b.icon}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>{b.label}</TooltipContent>
-              </Tooltip>
-            )
-          })}
+        <div className="note-toolbar px-4 py-2 md:px-6">
+          <div className="flex items-center gap-0.5 overflow-x-auto rounded-lg bg-muted/50 px-2 py-1">
+            {toolbarButtons.map((btn, i) => {
+              if (btn === 'separator') {
+                return <Separator key={i} orientation="vertical" className="mx-1 h-5 shrink-0" />
+              }
+              const b = btn as { icon: React.ReactNode; label: string; action: () => void; active: boolean | undefined }
+              return (
+                <Tooltip key={i}>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className={`h-7 w-7 shrink-0 ${b.active ? 'bg-accent text-accent-foreground' : ''}`}
+                      onClick={b.action}
+                    >
+                      {b.icon}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>{b.label}</TooltipContent>
+                </Tooltip>
+              )
+            })}
+          </div>
         </div>
       </div>
 
       <Separator />
 
       {/* Editor */}
-      <div className="flex-1 overflow-auto px-6">
-        <EditorContent editor={editor} />
+      <div className="tiptap-editor flex-1 min-h-0 overflow-y-auto overscroll-contain">
+        <div className="tiptap-editor-content px-6 h-full">
+          <EditorContent editor={editor} />
+        </div>
       </div>
     </div>
   )

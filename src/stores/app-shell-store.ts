@@ -6,6 +6,7 @@ interface AppShellState {
   setCompactNavExpanded: (expanded: boolean) => void
   setMobileBottomNavVisible: (visible: boolean) => void
   toggleCompactNav: () => void
+  reset: () => void
 }
 
 export const useAppShellStore = create<AppShellState>((set) => ({
@@ -15,4 +16,5 @@ export const useAppShellStore = create<AppShellState>((set) => ({
   setMobileBottomNavVisible: (mobileBottomNavVisible) => set({ mobileBottomNavVisible }),
   toggleCompactNav: () =>
     set((state) => ({ compactNavExpanded: !state.compactNavExpanded })),
+  reset: () => set({ compactNavExpanded: true, mobileBottomNavVisible: true }),
 }))

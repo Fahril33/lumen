@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { useTeams } from '@/hooks/use-teams'
 import { useTeamStore } from '@/stores/team-store'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -33,8 +34,9 @@ const activityIcons: Record<string, React.ReactNode> = {
 
 export function DashboardView() {
   const { currentTeam } = useTeamStore()
+  const { teamsQuery } = useTeams()
 
-  const { data: activities } = useQuery({
+  const activitiesQuery = useQuery({
     queryKey: ['activities', currentTeam?.id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -49,7 +51,7 @@ export function DashboardView() {
     enabled: !!currentTeam,
   })
 
-  const { data: members } = useQuery({
+  const membersQuery = useQuery({
     queryKey: ['team-members', currentTeam?.id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -62,7 +64,7 @@ export function DashboardView() {
     enabled: !!currentTeam,
   })
 
-  const { data: stats } = useQuery({
+  const statsQuery = useQuery({
     queryKey: ['team-stats', currentTeam?.id],
     queryFn: async () => {
       const { data: channelRows, error: channelError } = await supabase
@@ -85,11 +87,23 @@ export function DashboardView() {
         channels: channels.count ?? 0,
         notes: notes.count ?? 0,
         messages: messages.count ?? 0,
-        members: members?.length ?? 0,
+        members: membersQuery.data?.length ?? 0,
       }
     },
-    enabled: !!currentTeam && !!members,
+    enabled: !!currentTeam && membersQuery.status === 'success',
   })
+
+  const activities = activitiesQuery.data
+  const members = membersQuery.data
+  const stats = statsQuery.data
+  const isTeamsLoading = teamsQuery.isLoading || teamsQuery.isFetching
+  const isDashboardLoading =
+    !!currentTeam &&
+    (activitiesQuery.isLoading || membersQuery.isLoading || statsQuery.isLoading)
+
+  if (isTeamsLoading && !currentTeam) {
+    return <DashboardSkeleton />
+  }
 
   if (!currentTeam) {
     return (
@@ -107,8 +121,6 @@ export function DashboardView() {
     )
   }
 
-  const isLoading = !activities || !members || !stats
-
   const statCards = [
     { label: 'Members', value: stats?.members ?? members?.length ?? 0, icon: <Users className="w-5 h-5" />, color: 'text-chart-1' },
     { label: 'Channels', value: stats?.channels ?? 0, icon: <Hash className="w-5 h-5" />, color: 'text-chart-2' },
@@ -117,7 +129,7 @@ export function DashboardView() {
   ]
 
   return (
-    <div className="flex-1 p-6 overflow-auto">
+    <div className="flex-1 overflow-auto overscroll-contain p-6">
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -140,7 +152,7 @@ export function DashboardView() {
 
         {/* Stat cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {isLoading
+          {isDashboardLoading
             ? Array.from({ length: 4 }).map((_, index) => (
                 <Card key={index} className="bg-card/50 backdrop-blur border-border/50">
                   <CardContent className="p-4 space-y-3">
@@ -176,7 +188,7 @@ export function DashboardView() {
             </CardHeader>
             <CardContent>
               <ScrollArea className="h-[400px]">
-                {isLoading ? (
+                {isDashboardLoading ? (
                   <div className="space-y-3">
                     {Array.from({ length: 6 }).map((_, index) => (
                       <div key={index} className="flex items-start gap-3 p-2">
@@ -225,7 +237,7 @@ export function DashboardView() {
             <CardContent>
               <ScrollArea className="h-[400px]">
                 <div className="space-y-2">
-                  {isLoading
+                  {isDashboardLoading
                     ? Array.from({ length: 7 }).map((_, index) => (
                         <div key={index} className="flex items-center gap-3 p-2">
                           <Skeleton className="h-8 w-8 rounded-full" />
@@ -250,6 +262,69 @@ export function DashboardView() {
                       ))}
                 </div>
               </ScrollArea>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function DashboardSkeleton() {
+  return (
+    <div className="flex-1 overflow-auto overscroll-contain p-6">
+      <div className="mx-auto max-w-6xl space-y-6">
+        <div className="space-y-3">
+          <Skeleton className="h-8 w-40" />
+          <Skeleton className="h-4 w-72" />
+        </div>
+
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <Card key={index} className="border-border/50 bg-card/50 backdrop-blur">
+              <CardContent className="space-y-3 p-4">
+                <div className="flex items-center justify-between">
+                  <Skeleton className="h-5 w-5" />
+                  <Skeleton className="h-8 w-10" />
+                </div>
+                <Skeleton className="h-3 w-16" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        <div className="grid gap-6 md:grid-cols-3">
+          <Card className="border-border/50 bg-card/50 backdrop-blur md:col-span-2">
+            <CardHeader className="pb-3">
+              <Skeleton className="h-5 w-36" />
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {Array.from({ length: 6 }).map((_, index) => (
+                <div key={index} className="flex items-start gap-3 p-2">
+                  <Skeleton className="mt-0.5 h-4 w-4" />
+                  <div className="flex-1 space-y-2">
+                    <Skeleton className="h-4 w-40" />
+                    <Skeleton className="h-3 w-20" />
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+
+          <Card className="border-border/50 bg-card/50 backdrop-blur">
+            <CardHeader className="pb-3">
+              <Skeleton className="h-5 w-28" />
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {Array.from({ length: 7 }).map((_, index) => (
+                <div key={index} className="flex items-center gap-3 p-2">
+                  <Skeleton className="h-8 w-8 rounded-full" />
+                  <div className="flex-1 space-y-2">
+                    <Skeleton className="h-4 w-28" />
+                    <Skeleton className="h-3 w-16" />
+                  </div>
+                </div>
+              ))}
             </CardContent>
           </Card>
         </div>

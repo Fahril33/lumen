@@ -110,7 +110,7 @@ export function NotesView() {
       </div>
       }
       detail={
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="notes-editor-container-main flex flex-col h-full overflow-hidden">
           {activeNoteId ? (
             <NoteEditor noteId={activeNoteId} />
           ) : (

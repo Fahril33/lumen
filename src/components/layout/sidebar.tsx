@@ -53,9 +53,10 @@ type NavItem = 'dashboard' | 'chat' | 'notes'
 interface SidebarProps {
   activeNav: NavItem
   onNavChange: (nav: NavItem) => void
+  isMobileKeyboardOpen?: boolean
 }
 
-export function Sidebar({ activeNav, onNavChange }: SidebarProps) {
+export function Sidebar({ activeNav, onNavChange, isMobileKeyboardOpen = false }: SidebarProps) {
   const { profile, signOut } = useAuth()
   const { theme, setTheme } = useTheme()
   const { isDesktop, isMobile, isNarrowMobile } = useResponsiveLayout()
@@ -92,10 +93,11 @@ export function Sidebar({ activeNav, onNavChange }: SidebarProps) {
   const navItems: { key: NavItem; label: string; icon: React.ReactNode; badge?: number }[] = [
     { key: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="w-5 h-5" /> },
     { key: 'chat', label: 'Chat', icon: <MessageSquare className="w-5 h-5" />, badge: unreadCount },
-    { key: 'notes', label: 'Notes (soon)', icon: <FileText className="w-5 h-5" /> },
+    { key: 'notes', label: 'Notes', icon: <FileText className="w-5 h-5" /> },
   ]
   const activeNavItem = navItems.find((item) => item.key === activeNav) ?? navItems[0]
   const activeNavIndex = navItems.findIndex((item) => item.key === activeNav)
+  const showMobileBottomNav = mobileBottomNavVisible && !isMobileKeyboardOpen
   const themeOptions: Array<{ key: 'dark' | 'comfy' | 'light' | 'soon'; label: string; description: string; disabled?: boolean }> = [
     { key: 'dark', label: 'Dark', description: 'Default dark workspace' },
     { key: 'comfy', label: 'Comfy', description: 'Atom-inspired dark comfort' },
@@ -108,7 +110,7 @@ export function Sidebar({ activeNav, onNavChange }: SidebarProps) {
       <>
         <div
           className={`fixed inset-x-0 bottom-0 z-40 border-t border-sidebar-border bg-sidebar/95 px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 backdrop-blur-xl transition-transform duration-300 ease-out ${
-            mobileBottomNavVisible ? 'translate-y-0' : 'translate-y-full'
+            showMobileBottomNav ? 'translate-y-0' : 'pointer-events-none translate-y-full'
           }`}
         >
           <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-end gap-3">

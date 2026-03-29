@@ -1,4 +1,5 @@
-import { useState, useEffect, lazy, Suspense } from 'react'
+import { useState, useEffect, useRef, lazy, Suspense } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '@/hooks/use-auth'
 import { useTeams } from '@/hooks/use-teams'
 import { useGlobalChatListener } from '@/hooks/use-friend-chat'
@@ -6,6 +7,7 @@ import { useResponsiveLayout } from '@/hooks/use-responsive-layout'
 import { useTheme } from '@/hooks/use-theme'
 import { useViewportHeight } from '@/hooks/use-viewport-height'
 import { useTeamStore } from '@/stores/team-store'
+import { useNotesStore } from '@/stores/notes-store'
 import { useAppShellStore } from '@/stores/app-shell-store'
 import { Sidebar } from '@/components/layout/sidebar'
 import { Loader2 } from 'lucide-react'
@@ -31,7 +33,8 @@ type NavItem = 'dashboard' | 'chat' | 'notes'
 
 export function App() {
   useTheme()
-  useViewportHeight()
+  const { isMobileKeyboardOpen } = useViewportHeight()
+  const queryClient = useQueryClient()
   const { user, isLoading } = useAuth()
   // Load teams into store (data flows through Zustand)
   useTeams()
@@ -41,6 +44,7 @@ export function App() {
   const { isDesktop, isMobile } = useResponsiveLayout()
   const { setCompactNavExpanded, mobileBottomNavVisible } = useAppShellStore()
   const [activeNav, setActiveNav] = useState<NavItem>('dashboard')
+  const previousUserIdRef = useRef<string | null | undefined>(undefined)
 
   // Auto-select first team
   useEffect(() => {
@@ -55,6 +59,24 @@ export function App() {
       setCompactNavExpanded(false)
     }
   }
+
+  useEffect(() => {
+    const nextUserId = user?.id ?? null
+
+    if (previousUserIdRef.current === undefined) {
+      previousUserIdRef.current = nextUserId
+      return
+    }
+
+    if (previousUserIdRef.current !== nextUserId) {
+      queryClient.clear()
+      useTeamStore.getState().reset()
+      useNotesStore.getState().reset()
+      useAppShellStore.getState().reset()
+    }
+
+    previousUserIdRef.current = nextUserId
+  }, [queryClient, user?.id])
 
   if (isLoading) {
     return (
@@ -81,11 +103,15 @@ export function App() {
   }
 
   return (
-    <div className="h-[var(--app-height)] flex overflow-hidden bg-background">
-      <Sidebar activeNav={activeNav} onNavChange={handleNavChange} />
+    <div className="h-[var(--app-height)] flex overflow-hidden overscroll-none bg-background">
+      <Sidebar
+        activeNav={activeNav}
+        onNavChange={handleNavChange}
+        isMobileKeyboardOpen={isMobileKeyboardOpen}
+      />
       <main
-        className={`flex-1 flex flex-col overflow-hidden ${
-          isMobile && mobileBottomNavVisible ? 'pb-20' : ''
+        className={`flex-1 min-h-0 flex flex-col overflow-hidden overscroll-none ${
+          isMobile && mobileBottomNavVisible && !isMobileKeyboardOpen ? 'mb-20' : ''
         }`}
       >
         <Suspense fallback={<LazyShellFallback />}>

@@ -114,6 +114,11 @@ export function ChatView() {
     }
   }, [activeChat, isMobile, setMobileBottomNavVisible])
 
+  useEffect(() => {
+    if (!activeChatId || !sendMessage.isSuccess) return
+    scrollToBottom('smooth')
+  }, [activeChatId, messages.length, scrollToBottom, sendMessage.isSuccess])
+
   function getChatName(chat: any) {
     if (chat.is_group) return chat.name || 'Group Chat'
     // For DM, find the other participant
@@ -143,8 +148,18 @@ export function ChatView() {
   async function handleSend(e: FormEvent) {
     e.preventDefault()
     if (!messageText.trim()) return
-    sendMessage.mutate({ content: messageText.trim() })
+    const nextMessage = messageText.trim()
     setMessageText('')
+    setShowEmoji(false)
+    scrollToBottom('smooth')
+    sendMessage.mutate(
+      { content: nextMessage },
+      {
+        onSuccess: () => {
+          scrollToBottom('smooth')
+        },
+      }
+    )
   }
 
   async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -470,7 +485,7 @@ export function ChatView() {
                   : 'calc(var(--app-height) - 4rem - 5.5rem - env(safe-area-inset-top) - env(safe-area-inset-bottom))',
               }}
             >
-              <div className="py-6 space-y-6">
+              <div className="">
                 {isMessagesLoading ? (
                   Array.from({ length: 8 }).map((_, index) => (
                     <div key={index} className={`flex w-full ${index % 2 === 0 ? 'justify-start' : 'justify-end'}`}>

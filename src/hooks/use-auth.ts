@@ -6,6 +6,7 @@ import type { Profile } from '@/types/database'
 let listenersCount = 0
 /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
 let authSubscription: any = null
+let latestProfileRequestUserId: string | null = null
 
 export function useAuth() {
   const { session, user, profile, isLoading, setSession, setProfile, setLoading, reset } =
@@ -16,18 +17,28 @@ export function useAuth() {
 
     if (listenersCount === 1) {
       const fetchProfile = async (userId: string) => {
+        latestProfileRequestUserId = userId
         const { data } = await supabase
           .from('profiles')
           .select('*')
           .eq('id', userId)
           .single()
-        if (data) setProfile(data)
+
+        const activeUserId = useAuthStore.getState().user?.id
+        if (!data || latestProfileRequestUserId !== userId || activeUserId !== userId) {
+          return
+        }
+
+        setProfile(data as Profile)
       }
 
       supabase.auth.getSession().then(({ data: { session: s } }) => {
         setSession(s)
         if (s?.user) {
           fetchProfile(s.user.id)
+        } else {
+          latestProfileRequestUserId = null
+          setProfile(null)
         }
         setLoading(false)
       })
@@ -37,6 +48,7 @@ export function useAuth() {
         if (session?.user) {
           fetchProfile(session.user.id)
         } else {
+          latestProfileRequestUserId = null
           setProfile(null)
         }
       })
