@@ -1,5 +1,5 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useCallback } from 'react'
+import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useEffect, useCallback, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth-store'
 import type { ChatMessageWithProfile } from '@/types/database'
@@ -18,6 +18,96 @@ interface ChatListItem {
   id: string
   unread_count?: number
   messages?: ChatListMessagePreview[]
+}
+
+interface ChatMessagesPage {
+  items: ChatMessageWithProfile[]
+  nextCursor: string | null
+}
+
+const CHAT_MESSAGES_PAGE_SIZE = 100
+
+const CHAT_LIST_SELECT = `
+  *,
+  participants:chat_participants(profiles(*)),
+  messages:chat_messages(id, user_id, content, created_at, status, message_kind)
+`
+
+async function fetchUnreadMap(userId: string) {
+  /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+  const { data: unreadData, error } = await (supabase.from('chat_messages') as any)
+    .select('chat_id')
+    .neq('status', 'read')
+    .neq('user_id', userId)
+
+  if (error) throw error
+
+  /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+  return (unreadData ?? []).reduce((acc: Record<string, number>, row: any) => {
+    acc[row.chat_id] = (acc[row.chat_id] || 0) + 1
+    return acc
+  }, {})
+}
+
+async function fetchChatsForUser(userId: string) {
+  /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+  const { data, error } = await (supabase.from('chats') as any)
+    .select(CHAT_LIST_SELECT)
+    .order('created_at', { referencedTable: 'chat_messages', ascending: false })
+    .limit(1, { referencedTable: 'chat_messages' })
+    .order('updated_at', { ascending: false })
+
+  if (error) throw error
+
+  const unreadMap = await fetchUnreadMap(userId)
+
+  /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+  return (data as any[]).map((chat) => ({
+    ...chat,
+    unread_count: unreadMap[chat.id] || 0,
+  }))
+}
+
+async function fetchChatById(chatId: string, userId: string) {
+  /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+  const { data, error } = await (supabase.from('chats') as any)
+    .select(CHAT_LIST_SELECT)
+    .eq('id', chatId)
+    .single()
+
+  if (error) throw error
+
+  const unreadMap = await fetchUnreadMap(userId)
+
+  return {
+    ...data,
+    unread_count: unreadMap[chatId] || 0,
+  }
+}
+
+async function fetchChatMessagesPage(chatId: string, cursor?: string | null) {
+  /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+  let query = (supabase.from('chat_messages') as any)
+    .select('*, profiles(*)')
+    .eq('chat_id', chatId)
+    .order('created_at', { ascending: false })
+    .limit(CHAT_MESSAGES_PAGE_SIZE)
+
+  if (cursor) {
+    query = query.lt('created_at', cursor)
+  }
+
+  const { data, error } = await query
+  if (error) throw error
+
+  const items = (data ?? []) as ChatMessageWithProfile[]
+  return {
+    items,
+    nextCursor:
+      items.length === CHAT_MESSAGES_PAGE_SIZE
+        ? items[items.length - 1]?.created_at ?? null
+        : null,
+  } satisfies ChatMessagesPage
 }
 
 export function useFriendships() {
@@ -95,59 +185,40 @@ export function useChats() {
 
   const chatsQuery = useQuery({
     queryKey: ['chats', user?.id],
-    queryFn: async () => {
-      /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
-      const { data, error } = await (supabase.from('chats') as any)
-        .select(`
-          *,
-          participants:chat_participants(profiles(*)),
-          messages:chat_messages(id, user_id, content, created_at, status, message_kind)
-        `)
-        .order('created_at', { referencedTable: 'chat_messages', ascending: false })
-        .limit(1, { referencedTable: 'chat_messages' })
-        .order('updated_at', { ascending: false })
-      
-      // Need to transform it slightly to limit last_message
-      if (error) throw error
-
-      /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
-      const { data: unreadData } = await (supabase.from('chat_messages') as any)
-        .select('chat_id')
-        .neq('status', 'read')
-        .neq('user_id', user!.id)
-
-      /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
-      const unreadMap = (unreadData ?? []).reduce((acc: any, row: any) => {
-        acc[row.chat_id] = (acc[row.chat_id] || 0) + 1
-        return acc
-      }, {})
-
-      /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
-      return (data as any[]).map((chat) => ({
-        ...chat,
-        unread_count: unreadMap[chat.id] || 0
-      }))
-    },
+    queryFn: async () => fetchChatsForUser(user!.id),
     enabled: !!user,
   })
 
 
   const createChat = useMutation({
     mutationFn: async ({ participantIds, isGroup, name }: { participantIds: string[], isGroup: boolean, name?: string }) => {
-      // 1. Create chat
+      if (!user) {
+        throw new Error('Not authenticated')
+      }
+
+      if (!isGroup && participantIds.length === 1) {
+        /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+        const { data: chatId, error } = await (supabase.rpc as any)('ensure_direct_chat', {
+          p_other_user_id: participantIds[0],
+        })
+
+        if (error) throw error
+
+        return fetchChatById(chatId, user.id)
+      }
+
       /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
       const { data: chat, error: chatErr } = await (supabase.from('chats') as any)
         .insert({
           is_group: isGroup,
           name: name ?? null,
-          created_by: user!.id
+          created_by: user.id
         })
         .select()
         .single()
       if (chatErr) throw chatErr
 
-      // 2. Add participants (including me)
-      const participants = [...new Set([...participantIds, user!.id])].map(id => ({
+      const participants = [...new Set([...participantIds, user.id])].map(id => ({
         chat_id: chat.id,
         user_id: id
       }))
@@ -157,9 +228,16 @@ export function useChats() {
         .insert(participants)
       if (partErr) throw partErr
 
-      return chat
+      return fetchChatById(chat.id, user.id)
     },
-    onSuccess: () => {
+    onSuccess: (chat) => {
+      queryClient.setQueryData<ChatListItem[]>(
+        ['chats', user?.id],
+        (current) => {
+          const deduped = (current ?? []).filter((existing) => existing.id !== chat.id)
+          return [chat, ...deduped]
+        }
+      )
       queryClient.invalidateQueries({ queryKey: ['chats', user?.id] })
     }
   })
@@ -194,10 +272,12 @@ export function useGlobalChatListener() {
           /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
           ;(supabase.rpc as any)('mark_user_messages_received').then()
           queryClient.invalidateQueries({ queryKey: ['chats', user.id] })
+          queryClient.invalidateQueries({ queryKey: ['chat_messages', payload.new.chat_id] })
         }
       })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'chat_messages' }, () => {
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'chat_messages' }, (payload: /* eslint-disable-line @typescript-eslint/no-explicit-any */ any) => {
         queryClient.invalidateQueries({ queryKey: ['chats', user.id] })
+        queryClient.invalidateQueries({ queryKey: ['chat_messages', payload.new.chat_id] })
       })
       .subscribe()
     return () => { channel.unsubscribe() }
@@ -208,20 +288,22 @@ export function useChatMessages(chatId: string | undefined) {
   const user = useAuthStore((s) => s.user)
   const queryClient = useQueryClient()
 
-  const messagesQuery = useQuery({
+  const messagesQuery = useInfiniteQuery({
     queryKey: ['chat_messages', chatId],
-    queryFn: async () => {
-      /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
-      const { data, error } = await (supabase.from('chat_messages') as any)
-        .select('*, profiles(*)')
-        .eq('chat_id', chatId!)
-        .order('created_at', { ascending: true })
-        .limit(100)
-      if (error) throw error
-      return data as ChatMessageWithProfile[]
-    },
+    queryFn: async ({ pageParam }) => fetchChatMessagesPage(chatId!, pageParam),
+    initialPageParam: null as string | null,
+    getNextPageParam: (lastPage) => lastPage.nextCursor,
     enabled: !!chatId,
   })
+
+  const messages = useMemo(
+    () =>
+      (messagesQuery.data?.pages ?? [])
+        .slice()
+        .reverse()
+        .flatMap((page) => [...page.items].reverse()),
+    [messagesQuery.data?.pages]
+  )
 
   useEffect(() => {
     if (!chatId) return
@@ -233,30 +315,67 @@ export function useChatMessages(chatId: string | undefined) {
         { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `chat_id=eq.${chatId}` },
         async (payload) => {
           /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
-          const { data: profile } = await (supabase.from('profiles') as any)
-            .select('*')
-            .eq('id', payload.new.user_id)
-            .single()
-          
+          const { data } = await (supabase.from('chat_messages') as any)
+            .select('*, profiles(*)')
+            .eq('id', payload.new.id)
+            .maybeSingle()
+
           /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
-          const newMsg = { ...payload.new, profiles: profile } as any as ChatMessageWithProfile
-          queryClient.setQueryData<ChatMessageWithProfile[]>(
+          const newMsg = ((data ?? payload.new) as any) as ChatMessageWithProfile
+          queryClient.setQueryData(
             ['chat_messages', chatId],
-            (old) => {
-              if (!old) return [newMsg]
-              if (old.some(m => m.id === newMsg.id)) return old
-              return [...old, newMsg]
+            (old: { pages: ChatMessagesPage[]; pageParams: Array<string | null> } | undefined) => {
+              if (!old) {
+                return {
+                  pages: [{ items: [newMsg], nextCursor: null }],
+                  pageParams: [null],
+                }
+              }
+              if (old.pages.some((page) => page.items.some((message) => message.id === newMsg.id))) {
+                return old
+              }
+
+              const [firstPage, ...restPages] = old.pages
+              if (!firstPage) {
+                return {
+                  pages: [{ items: [newMsg], nextCursor: null }],
+                  pageParams: [null],
+                }
+              }
+
+              return {
+                ...old,
+                pages: [
+                  {
+                    ...firstPage,
+                    items: [newMsg, ...firstPage.items],
+                  },
+                  ...restPages,
+                ],
+              }
             }
           )
+
+          queryClient.invalidateQueries({ queryKey: ['chat_messages', chatId] })
         }
       )
       .on(
         'postgres_changes',
         { event: 'DELETE', schema: 'public', table: 'chat_messages', filter: `chat_id=eq.${chatId}` },
         (payload) => {
-          queryClient.setQueryData<ChatMessageWithProfile[]>(
+          queryClient.setQueryData(
             ['chat_messages', chatId],
-            (old) => (old ?? []).filter((m) => m.id !== payload.old.id)
+            (old: { pages: ChatMessagesPage[]; pageParams: Array<string | null> } | undefined) => {
+              if (!old) return old
+
+              return {
+                ...old,
+                pages: old.pages.map((page) => ({
+                  ...page,
+                  items: page.items.filter((message) => message.id !== payload.old.id),
+                })),
+              }
+            }
           )
         }
       )
@@ -264,9 +383,21 @@ export function useChatMessages(chatId: string | undefined) {
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'chat_messages', filter: `chat_id=eq.${chatId}` },
         (payload) => {
-          queryClient.setQueryData<ChatMessageWithProfile[]>(
+          queryClient.setQueryData(
             ['chat_messages', chatId],
-            (old) => (old ?? []).map((m) => m.id === payload.new.id ? { ...m, ...payload.new } : m)
+            (old: { pages: ChatMessagesPage[]; pageParams: Array<string | null> } | undefined) => {
+              if (!old) return old
+
+              return {
+                ...old,
+                pages: old.pages.map((page) => ({
+                  ...page,
+                  items: page.items.map((message) =>
+                    message.id === payload.new.id ? { ...message, ...payload.new } : message
+                  ),
+                })),
+              }
+            }
           )
         }
       )
@@ -292,12 +423,38 @@ export function useChatMessages(chatId: string | undefined) {
     },
     onSuccess: (newMsg) => {
       if (!newMsg) return
-      queryClient.setQueryData<ChatMessageWithProfile[]>(
+      queryClient.setQueryData(
         ['chat_messages', chatId],
-        (old) => {
-          if (!old) return [newMsg]
-          if (old.some(m => m.id === newMsg.id)) return old
-          return [...old, newMsg]
+        (old: { pages: ChatMessagesPage[]; pageParams: Array<string | null> } | undefined) => {
+          if (!old) {
+            return {
+              pages: [{ items: [newMsg], nextCursor: null }],
+              pageParams: [null],
+            }
+          }
+
+          if (old.pages.some((page) => page.items.some((message) => message.id === newMsg.id))) {
+            return old
+          }
+
+          const [firstPage, ...restPages] = old.pages
+          if (!firstPage) {
+            return {
+              pages: [{ items: [newMsg], nextCursor: null }],
+              pageParams: [null],
+            }
+          }
+
+          return {
+            ...old,
+            pages: [
+              {
+                ...firstPage,
+                items: [newMsg, ...firstPage.items],
+              },
+              ...restPages,
+            ],
+          }
         }
       )
     }
@@ -323,16 +480,26 @@ export function useChatMessages(chatId: string | undefined) {
     onMutate: async () => {
       if (!chatId || !user) return
 
-      const previousMessages = queryClient.getQueryData<ChatMessageWithProfile[]>(['chat_messages', chatId])
+      const previousMessages = queryClient.getQueryData(['chat_messages', chatId])
       const previousChats = queryClient.getQueryData<ChatListItem[]>(['chats', user.id])
 
-      queryClient.setQueryData<ChatMessageWithProfile[]>(
+      queryClient.setQueryData(
         ['chat_messages', chatId],
-        (old) => (old ?? []).map((message) =>
-          message.user_id !== user.id && message.status !== 'read'
-            ? { ...message, status: 'read' as const }
-            : message
-        )
+        (old: { pages: ChatMessagesPage[]; pageParams: Array<string | null> } | undefined) => {
+          if (!old) return old
+
+          return {
+            ...old,
+            pages: old.pages.map((page) => ({
+              ...page,
+              items: page.items.map((message) =>
+                message.user_id !== user.id && message.status !== 'read'
+                  ? { ...message, status: 'read' as const }
+                  : message
+              ),
+            })),
+          }
+        }
       )
 
       queryClient.setQueryData<ChatListItem[]>(
@@ -371,5 +538,14 @@ export function useChatMessages(chatId: string | undefined) {
     }
   })
 
-  return { messagesQuery, sendMessage, uploadFile, markAsRead }
+  return {
+    messagesQuery,
+    messages,
+    sendMessage,
+    uploadFile,
+    markAsRead,
+    fetchOlderMessages: messagesQuery.fetchNextPage,
+    hasOlderMessages: messagesQuery.hasNextPage,
+    isFetchingOlderMessages: messagesQuery.isFetchingNextPage,
+  }
 }

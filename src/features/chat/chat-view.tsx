@@ -32,6 +32,7 @@ import {
   Check,
   ArrowDown,
   ChevronLeft,
+  ChevronUp,
   X
 } from 'lucide-react'
 import type { ChatMessageWithProfile } from '@/types/database'
@@ -75,9 +76,17 @@ export function ChatView() {
   }
 
   const activeChat = useMemo(() => chats.find(c => c.id === activeChatId), [chats, activeChatId])
-  const { messagesQuery, sendMessage, uploadFile, markAsRead } = useChatMessages(activeChatId ?? undefined)
-  const messages = useMemo(() => messagesQuery.data ?? [], [messagesQuery.data])
-  const isMessagesLoading = messagesQuery.isLoading || messagesQuery.isFetching
+  const {
+    messagesQuery,
+    messages,
+    sendMessage,
+    uploadFile,
+    markAsRead,
+    fetchOlderMessages,
+    hasOlderMessages,
+    isFetchingOlderMessages,
+  } = useChatMessages(activeChatId ?? undefined)
+  const isMessagesLoading = messagesQuery.isLoading || (messagesQuery.isFetching && messages.length === 0)
   const hasUnreadIncomingMessages = useMemo(
     () => messages.some((message) => message.user_id !== user?.id && message.status !== 'read'),
     [messages, user?.id]
@@ -484,8 +493,27 @@ export function ChatView() {
                   ? undefined
                   : 'calc(var(--app-height) - 4rem - 5.5rem - env(safe-area-inset-top) - env(safe-area-inset-bottom))',
               }}
-            >
+              >
               <div className="">
+                {hasOlderMessages ? (
+                  <div className="sticky top-3 z-10 flex justify-center py-3">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="rounded-full bg-background/90 backdrop-blur"
+                      onClick={() => void fetchOlderMessages()}
+                      disabled={isFetchingOlderMessages}
+                    >
+                      {isFetchingOlderMessages ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <ChevronUp className="mr-2 h-4 w-4" />
+                      )}
+                      Load older messages
+                    </Button>
+                  </div>
+                ) : null}
                 {isMessagesLoading ? (
                   Array.from({ length: 8 }).map((_, index) => (
                     <div key={index} className={`flex w-full ${index % 2 === 0 ? 'justify-start' : 'justify-end'}`}>
