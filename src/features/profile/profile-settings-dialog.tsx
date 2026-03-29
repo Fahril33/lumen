@@ -5,8 +5,10 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
 import { useProfileSettings } from '@/hooks/use-profile'
 import { getInitials } from '@/lib/utils'
 import type { Profile } from '@/types/database'
@@ -104,6 +106,11 @@ function ProfileSettingsForm({ profile, onClose }: ProfileSettingsFormProps) {
   const [username, setUsername] = useState(profile.username ?? '')
   const [avatarUrl, setAvatarUrl] = useState(profile.avatar_url ?? '')
   const [allowAnonChat, setAllowAnonChat] = useState(profile.allow_anon_chat ?? false)
+  const [aiServiceProvider, setAiServiceProvider] = useState(profile.ai_service_provider ?? '')
+  const [aiApiKey, setAiApiKey] = useState(profile.ai_api_key ?? '')
+  const [aiModel, setAiModel] = useState(profile.ai_model ?? '')
+  const [aiCustomInstructions, setAiCustomInstructions] = useState(profile.ai_custom_instructions ?? '')
+  const [aiLanguage, setAiLanguage] = useState(profile.ai_language ?? '')
 
   async function handleAvatarChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
@@ -122,6 +129,11 @@ function ProfileSettingsForm({ profile, onClose }: ProfileSettingsFormProps) {
       username,
       avatarUrl,
       allowAnonChat,
+      aiServiceProvider: aiServiceProvider || null,
+      aiApiKey: aiApiKey || null,
+      aiModel: aiModel || null,
+      aiCustomInstructions: aiCustomInstructions || null,
+      aiLanguage: aiLanguage || null,
     })
 
     onClose()
@@ -224,6 +236,111 @@ function ProfileSettingsForm({ profile, onClose }: ProfileSettingsFormProps) {
           <p className="text-xs text-muted-foreground">
             Email stays managed by authentication.
           </p>
+        </div>
+      </div>
+
+      <div className="space-y-4 rounded-2xl border border-border/50 bg-card/40 p-4">
+        <h3 className="font-medium">AI Settings</h3>
+        <div className="grid gap-4 sm:grid-cols-2 text-xs">
+          <div className="space-y-2">
+            <Label htmlFor="ai-service-provider">AI Provider</Label>
+            <Select value={aiServiceProvider} onValueChange={(value) => {
+              setAiServiceProvider(value)
+              if (value === 'openai') setAiModel('gpt-5')
+              else if (value === 'gemini') setAiModel('gemini-1.5-pro')
+            }}>
+              <SelectTrigger id="ai-service-provider" className="w-full [&>span]:truncate [&>span]:text-left">
+                <SelectValue placeholder="Select a provider" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="gemini">Gemini</SelectItem>
+                <SelectItem value="openai">OpenAI</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2  ">
+            <Label htmlFor="ai-model">Model</Label>
+            {aiServiceProvider ? (
+              <Select value={aiModel} onValueChange={setAiModel}>
+                <SelectTrigger id="ai-model" className="w-full [&>span]:truncate [&>span]:text-left">
+                  <SelectValue placeholder="Select a model" />
+                </SelectTrigger>
+                <SelectContent>
+                  {aiServiceProvider === 'openai' ? (
+                    <>
+                      <SelectItem value="gpt-5">GPT-5 (Recommended)</SelectItem>
+                      <SelectItem value="gpt-5-mini">GPT-5 Mini</SelectItem>
+                      <SelectItem value="gpt-5-nano">GPT-5 Nano</SelectItem>
+                      <SelectItem value="gpt-4.1">GPT-4.1</SelectItem>
+                      <SelectItem value="gpt-4.1-mini">GPT-4.1 Mini</SelectItem>
+                      <SelectItem value="gpt-4o">GPT-4o</SelectItem>
+                    </>
+                  ) : (
+                    <>
+                      <SelectItem value="gemini-2.5-flash">Gemini 2.5 Flash</SelectItem>
+                      <SelectItem value="gemini-2.5-pro">Gemini 2.5 Pro (Recommended)</SelectItem>
+                      <SelectItem value="gemini-1.5-flash">Gemini 1.5 Flash</SelectItem>
+                      <SelectItem value="gemini-flash-lite-latest">Gemini Flash Lite Latest</SelectItem>
+                    </>
+                  )}
+                </SelectContent>
+              </Select>
+            ) : (
+              <div className="flex h-10 w-full items-center rounded-md border border-input bg-muted/50 px-3 py-1 text-sm text-muted-foreground italic">
+                Select a provider first
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="ai-language">Language</Label>
+          <Select value={aiLanguage} onValueChange={setAiLanguage}>
+            <SelectTrigger id="ai-language">
+              <SelectValue placeholder="Select a language" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="auto">Auto</SelectItem>
+              <SelectItem value="english">English</SelectItem>
+              <SelectItem value="indonesian">Indonesian</SelectItem>
+              <SelectItem value="javanese">Javanese</SelectItem>
+              <SelectItem value="sundanese">Sundanese</SelectItem>
+              <SelectItem value="arabic">Arabic</SelectItem>
+              <SelectItem value="chinese">Chinese</SelectItem>
+              <SelectItem value="french">French</SelectItem>
+              <SelectItem value="german">German</SelectItem>
+              <SelectItem value="hindi">Hindi</SelectItem>
+              <SelectItem value="japanese">Japanese</SelectItem>
+              <SelectItem value="korean">Korean</SelectItem>
+              <SelectItem value="portuguese">Portuguese</SelectItem>
+              <SelectItem value="russian">Russian</SelectItem>
+              <SelectItem value="spanish">Spanish</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="ai-custom-instructions">Custom Instructions</Label>
+          <Textarea
+            id="ai-custom-instructions"
+            value={aiCustomInstructions}
+            onChange={(event) => setAiCustomInstructions(event.target.value)}
+            placeholder="e.g., Use a formal tone, summarize in bullet points."
+            className="h-24"
+          />
+          <p className="text-xs text-muted-foreground">
+            Instructions that deviate from tidying up text will be ignored.
+          </p>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="ai-api-key">
+            {aiServiceProvider ? `${aiServiceProvider.charAt(0).toUpperCase() + aiServiceProvider.slice(1)} API Key` : 'API Key'}
+          </Label>
+          <Input
+            id="ai-api-key"
+            type="password"
+            value={aiApiKey}
+            onChange={(event) => setAiApiKey(event.target.value)}
+            placeholder="Your API key"
+          />
         </div>
       </div>
 

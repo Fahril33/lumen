@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import { createEmptyTiptapDocument, normalizeTiptapContent } from '@/lib/tiptap-content'
 import { useAuthStore } from '@/stores/auth-store'
 import type { Folder, Note } from '@/types/database'
 import type { FolderTreeItem } from '@/types/database'
@@ -116,7 +117,7 @@ export function useFolders(teamId: string | undefined) {
           team_id: teamId!,
           title: title ?? 'Untitled',
           folder_id: folderId ?? null,
-          content: {},
+          content: createEmptyTiptapDocument(),
           created_by: user!.id,
         })
         .select()
@@ -230,9 +231,20 @@ export function useNote(noteId: string | undefined) {
       const { data, error } = await (supabase.from('notes') as any)
         .select('*')
         .eq('id', noteId!)
-        .single()
-      if (error) throw error
-      return data as Note
+        .maybeSingle()
+
+      if (error) {
+        throw error
+      }
+
+      if (!data) {
+        return null
+      }
+
+      return {
+        ...data,
+        content: normalizeTiptapContent(data.content),
+      } as Note
     },
     enabled: !!noteId,
   })
@@ -266,9 +278,18 @@ export function useNote(noteId: string | undefined) {
       /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
       const { error } = await (supabase.from('notes') as any).update(updates).eq('id', noteId!)
       if (error) throw error
+      return updates
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['note', noteId] })
+    onSuccess: (updates) => {
+      queryClient.setQueryData<Note | null>(['note', noteId], (current) => {
+        if (!current) return current
+
+        return {
+          ...current,
+          ...updates,
+          updated_at: new Date().toISOString(),
+        } as Note
+      })
     },
   })
 

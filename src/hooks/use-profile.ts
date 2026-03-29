@@ -4,15 +4,36 @@ import { useAuth } from '@/hooks/use-auth'
 import { supabase } from '@/lib/supabase'
 
 export interface ProfileFormValues {
+
   fullName: string
+
   username: string
+
   avatarUrl: string
+
   allowAnonChat: boolean
+
+  aiServiceProvider: string | null
+
+  aiApiKey: string | null
+
+  aiModel: string | null
+
+  aiCustomInstructions: string | null
+
+  aiLanguage: string | null
+
 }
 
+
+
 function normalizeUsername(username: string) {
+
   return username.trim().toLowerCase()
+
 }
+
+
 
 export function useProfileSettings() {
   const queryClient = useQueryClient()
@@ -52,6 +73,11 @@ export function useProfileSettings() {
         username: username || null,
         avatar_url: values.avatarUrl.trim() || null,
         allow_anon_chat: values.allowAnonChat,
+        ai_service_provider: values.aiServiceProvider,
+        ai_api_key: values.aiApiKey,
+        ai_model: values.aiModel,
+        ai_custom_instructions: values.aiCustomInstructions,
+        ai_language: values.aiLanguage,
       })
 
       if (error) throw error

@@ -13,6 +13,11 @@ export interface Database {
           allow_anon_chat: boolean
           created_at: string
           updated_at: string
+          ai_service_provider: string | null
+          ai_api_key: string | null
+          ai_model: string | null
+          ai_custom_instructions: string | null
+          ai_language: string | null
         }
         Insert: {
           id: string
@@ -23,6 +28,11 @@ export interface Database {
           allow_anon_chat?: boolean
           created_at?: string
           updated_at?: string
+          ai_service_provider?: string | null
+          ai_api_key?: string | null
+          ai_model?: string | null
+          ai_custom_instructions?: string | null
+          ai_language?: string | null
         }
         Update: {
           id?: string
@@ -32,6 +42,11 @@ export interface Database {
           avatar_url?: string | null
           allow_anon_chat?: boolean
           updated_at?: string
+          ai_service_provider?: string | null
+          ai_api_key?: string | null
+          ai_model?: string | null
+          ai_custom_instructions?: string | null
+          ai_language?: string | null
         }
       }
       teams: {

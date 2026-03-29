@@ -4,6 +4,7 @@ import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import Highlight from '@tiptap/extension-highlight'
 import { useNote } from '@/hooks/use-notes'
+import { normalizeTiptapContent } from '@/lib/tiptap-content'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
@@ -33,6 +34,7 @@ import {
   Save,
   Clock,
 } from 'lucide-react'
+import { AiToolbarButton } from './ai-toolbar-button'
 import type { JSONContent } from '@tiptap/react'
 
 interface NoteEditorProps {
@@ -44,6 +46,7 @@ export function NoteEditor({ noteId }: NoteEditorProps) {
   const note = noteQuery.data
   const titleRef = useRef<HTMLInputElement>(null)
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const normalizedContent = normalizeTiptapContent(note?.content)
 
   const editor = useEditor({
     extensions: [
@@ -53,7 +56,7 @@ export function NoteEditor({ noteId }: NoteEditorProps) {
       Placeholder.configure({ placeholder: 'Start writing...' }),
       Highlight,
     ],
-    content: (note?.content as JSONContent) || {},
+    content: normalizedContent,
     editorProps: {
       attributes: {
         class: 'tiptap',
@@ -72,12 +75,12 @@ export function NoteEditor({ noteId }: NoteEditorProps) {
   useEffect(() => {
     if (editor && note?.content && !editor.isFocused) {
       const currentContent = JSON.stringify(editor.getJSON())
-      const newContent = JSON.stringify(note.content)
+      const newContent = JSON.stringify(normalizedContent)
       if (currentContent !== newContent) {
-        editor.commands.setContent(note.content as JSONContent)
+        editor.commands.setContent(normalizedContent as JSONContent)
       }
     }
-  }, [note?.content, editor])
+  }, [editor, normalizedContent, note?.content])
 
   const handleTitleChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -163,28 +166,31 @@ export function NoteEditor({ noteId }: NoteEditorProps) {
         </div>
 
         <div className="note-toolbar px-4 py-2 md:px-6">
-          <div className="flex items-center gap-0.5 overflow-x-auto rounded-lg bg-muted/50 px-2 py-1">
-            {toolbarButtons.map((btn, i) => {
-              if (btn === 'separator') {
-                return <Separator key={i} orientation="vertical" className="mx-1 h-5 shrink-0" />
-              }
-              const b = btn as { icon: React.ReactNode; label: string; action: () => void; active: boolean | undefined }
-              return (
-                <Tooltip key={i}>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className={`h-7 w-7 shrink-0 ${b.active ? 'bg-accent text-accent-foreground' : ''}`}
-                      onClick={b.action}
-                    >
-                      {b.icon}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>{b.label}</TooltipContent>
-                </Tooltip>
-              )
-            })}
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-0.5 overflow-x-auto rounded-lg bg-muted/50 px-2 py-1 flex-1">
+              {toolbarButtons.map((btn, i) => {
+                if (btn === 'separator') {
+                  return <Separator key={i} orientation="vertical" className="mx-1 h-5 shrink-0" />
+                }
+                const b = btn as { icon: React.ReactNode; label: string; action: () => void; active: boolean | undefined }
+                return (
+                  <Tooltip key={i}>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className={`h-7 w-7 shrink-0 ${b.active ? 'bg-accent text-accent-foreground' : ''}`}
+                        onClick={b.action}
+                      >
+                        {b.icon}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>{b.label}</TooltipContent>
+                  </Tooltip>
+                )
+              })}
+            </div>
+            <AiToolbarButton editor={editor} />
           </div>
         </div>
       </div>
