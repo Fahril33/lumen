@@ -5,6 +5,8 @@ import { useTheme } from '@/hooks/use-theme'
 import { useTeamStore } from '@/stores/team-store'
 import { useTeams } from '@/hooks/use-teams'
 import { useChats } from '@/hooks/use-friend-chat'
+import { useChatRequests } from '@/hooks/use-chat-requests'
+import { useIncomingTeamInvitations } from '@/hooks/use-team-invitations'
 import { useAppShellStore } from '@/stores/app-shell-store'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -64,6 +66,8 @@ export function Sidebar({ activeNav, onNavChange, isMobileKeyboardOpen = false }
   const { currentTeam, teams, setCurrentTeam } = useTeamStore()
   const { teamsQuery, createTeamMutation, joinTeamMutation } = useTeams()
   const { chatsQuery } = useChats()
+  const { chatRequestsQuery } = useChatRequests()
+  const { invitationsQuery: incomingTeamInvitationsQuery } = useIncomingTeamInvitations()
   const [showTeamDialog, setShowTeamDialog] = useState(false)
   const [showTeamsListDialog, setShowTeamsListDialog] = useState(false)
   const [showAccountDialog, setShowAccountDialog] = useState(false)
@@ -74,6 +78,8 @@ export function Sidebar({ activeNav, onNavChange, isMobileKeyboardOpen = false }
   const [inviteCode, setInviteCode] = useState('')
 
   const chats = chatsQuery.data ?? []
+  const incomingChatRequests = chatRequestsQuery.data ?? []
+  const incomingTeamInvitations = incomingTeamInvitationsQuery.data ?? []
   const isProfileLoading = !profile
   const isTeamsLoading = teamsQuery.isLoading
   const showLabels = isDesktop || compactNavExpanded
@@ -83,12 +89,13 @@ export function Sidebar({ activeNav, onNavChange, isMobileKeyboardOpen = false }
       ? 'w-full sm:w-[22rem]'
       : 'w-20'
   /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
-  const unreadCount = chats.filter((chat: any) => {
+  const unreadChatCount = chats.filter((chat: any) => {
     const lastMsg = chat.messages?.[0]
     if (!lastMsg) return false
     // Only count if the last message is from someone else and is not 'read'
     return lastMsg.user_id !== profile?.id && lastMsg.status !== 'read'
   }).length
+  const unreadCount = unreadChatCount + incomingChatRequests.length + incomingTeamInvitations.length
 
   const navItems: { key: NavItem; label: string; icon: React.ReactNode; badge?: number }[] = [
     { key: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="w-5 h-5" /> },

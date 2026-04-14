@@ -96,6 +96,36 @@ export interface Database {
           role?: 'owner' | 'admin' | 'member'
         }
       }
+      team_invitations: {
+        Row: {
+          id: string
+          team_id: string
+          inviter_id: string
+          invitee_id: string
+          message: string
+          status: 'pending' | 'accepted' | 'rejected' | 'cancelled'
+          responded_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          team_id: string
+          inviter_id: string
+          invitee_id: string
+          message?: string
+          status?: 'pending' | 'accepted' | 'rejected' | 'cancelled'
+          responded_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          message?: string
+          status?: 'pending' | 'accepted' | 'rejected' | 'cancelled'
+          responded_at?: string | null
+          updated_at?: string
+        }
+      }
       channels: {
         Row: {
           id: string
@@ -401,6 +431,7 @@ export interface Database {
 export type Profile = Database['public']['Tables']['profiles']['Row']
 export type Team = Database['public']['Tables']['teams']['Row']
 export type TeamMember = Database['public']['Tables']['team_members']['Row']
+export type TeamInvitation = Database['public']['Tables']['team_invitations']['Row']
 export type Channel = Database['public']['Tables']['channels']['Row']
 export type Message = Database['public']['Tables']['messages']['Row']
 export type Folder = Database['public']['Tables']['folders']['Row']

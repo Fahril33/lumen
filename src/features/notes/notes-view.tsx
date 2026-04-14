@@ -43,10 +43,10 @@ export function NotesView() {
     <AdaptiveFeatureLayout
       secondary={
       <div
-        className="flex h-full w-full flex-col"
+        className="that flex h-full w-full flex-col"
       >
         {/* Search & actions */}
-        <div className="p-3 space-y-2">
+        <div className="this p-3 space-y-2">
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input

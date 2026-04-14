@@ -1,13 +1,14 @@
 import { useQuery } from '@tanstack/react-query'
-import { supabase } from '@/lib/supabase'
+import { TeamMembersCard } from '@/features/dashboard/team-members-card'
+import { useTeamMembers } from '@/hooks/use-team-members'
 import { useTeams } from '@/hooks/use-teams'
+import { supabase } from '@/lib/supabase'
 import { useTeamStore } from '@/stores/team-store'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
-import { getInitials, formatRelativeTime } from '@/lib/utils'
-import type { ActivityWithProfile, TeamMemberWithProfile } from '@/types/database'
+import { formatRelativeTime } from '@/lib/utils'
+import type { ActivityWithProfile } from '@/types/database'
 import type { PostgrestError } from '@supabase/supabase-js'
 import {
   MessageSquare,
@@ -35,6 +36,7 @@ const activityIcons: Record<string, React.ReactNode> = {
 export function DashboardView() {
   const { currentTeam } = useTeamStore()
   const { teamsQuery } = useTeams()
+  const membersQuery = useTeamMembers(currentTeam?.id)
 
   const activitiesQuery = useQuery({
     queryKey: ['activities', currentTeam?.id],
@@ -47,19 +49,6 @@ export function DashboardView() {
         .limit(20)
       if (error) throw error
       return data as ActivityWithProfile[]
-    },
-    enabled: !!currentTeam,
-  })
-
-  const membersQuery = useQuery({
-    queryKey: ['team-members', currentTeam?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('team_members')
-        .select('*, profiles(*)')
-        .eq('team_id', currentTeam!.id)
-      if (error) throw error
-      return data as TeamMemberWithProfile[]
     },
     enabled: !!currentTeam,
   })
@@ -142,12 +131,6 @@ export function DashboardView() {
               {currentTeam.name} — Overview & recent activity
             </p>
           </div>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <span>Invite code:</span>
-            <code className="px-2 py-1 bg-muted rounded text-xs font-mono">
-              {currentTeam.invite_code}
-            </code>
-          </div>
         </div>
 
         {/* Stat cards */}
@@ -226,44 +209,7 @@ export function DashboardView() {
             </CardContent>
           </Card>
 
-          {/* Team Members */}
-          <Card className="bg-card/50 backdrop-blur border-border/50">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Users className="w-4 h-4 text-primary" />
-                Team Members
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ScrollArea className="h-[400px]">
-                <div className="space-y-2">
-                  {isDashboardLoading
-                    ? Array.from({ length: 7 }).map((_, index) => (
-                        <div key={index} className="flex items-center gap-3 p-2">
-                          <Skeleton className="h-8 w-8 rounded-full" />
-                          <div className="flex-1 space-y-2">
-                            <Skeleton className="h-4 w-28" />
-                            <Skeleton className="h-3 w-16" />
-                          </div>
-                        </div>
-                      ))
-                    : members?.map((member) => (
-                        <div key={member.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-accent/50 transition-colors">
-                          <Avatar className="w-8 h-8">
-                            <AvatarFallback className="text-xs">
-                              {getInitials(member.profiles?.full_name ?? 'U')}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">{member.profiles?.full_name}</p>
-                            <p className="text-xs text-muted-foreground capitalize">{member.role}</p>
-                          </div>
-                        </div>
-                      ))}
-                </div>
-              </ScrollArea>
-            </CardContent>
-          </Card>
+          <TeamMembersCard teamId={currentTeam.id} teamInviteCode={currentTeam.invite_code} />
         </div>
       </div>
     </div>

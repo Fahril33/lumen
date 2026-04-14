@@ -10,7 +10,7 @@ import { useTeamStore } from '@/stores/team-store'
 import { useNotesStore } from '@/stores/notes-store'
 import { useAppShellStore } from '@/stores/app-shell-store'
 import { Sidebar } from '@/components/layout/sidebar'
-import { Loader2 } from 'lucide-react'
+import { Loader, FullPageLoader } from '@/components/ui/loader'
 
 // Lazy load large views
 const AuthPage = lazy(() => import('@/routes/auth').then(m => ({ default: m.AuthPage })))
@@ -19,11 +19,9 @@ const ChatView = lazy(() => import('@/features/chat/chat-view').then(m => ({ def
 const NotesView = lazy(() => import('@/features/notes/notes-view').then(m => ({ default: m.NotesView })))
 
 const LoadingView = () => (
-  <div className="flex-1 flex items-center justify-center bg-background">
-    <div className="flex flex-col items-center gap-4">
-      <Loader2 className="w-8 h-8 text-primary animate-spin" />
-      <p className="text-sm text-muted-foreground animate-pulse">Loading view...</p>
-    </div>
+  <div className="flex-1 flex flex-col items-center justify-center bg-background gap-4">
+    <Loader size="4em" />
+    <p className="text-xs text-muted-foreground animate-pulse tracking-widest uppercase">Memuat...</p>
   </div>
 )
 
@@ -79,19 +77,7 @@ export function App() {
   }, [queryClient, user?.id])
 
   if (isLoading) {
-    return (
-      <div className="h-[var(--app-height)] flex items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-4">
-          <div className="relative">
-            <div className="w-16 h-16 rounded-2xl bg-primary/20 flex items-center justify-center">
-              <Loader2 className="w-8 h-8 text-primary animate-spin" />
-            </div>
-            <div className="absolute inset-0 rounded-2xl bg-primary/10 animate-ping" />
-          </div>
-          <p className="text-sm text-muted-foreground animate-pulse">Loading Pusdalops-IT...</p>
-        </div>
-      </div>
-    )
+    return <FullPageLoader label="Lumen by ril" />
   }
 
   if (!user) {

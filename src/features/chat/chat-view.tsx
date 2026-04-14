@@ -3,6 +3,7 @@ import { useEffect, useState, useRef, useMemo, type FormEvent } from 'react'
 import { useAuthStore } from '@/stores/auth-store'
 import { useChatRequests } from '@/hooks/use-chat-requests'
 import { useFriendships, useChats, useChatMessages } from '@/hooks/use-friend-chat'
+import { useIncomingTeamInvitations, useRespondToTeamInvitation } from '@/hooks/use-team-invitations'
 import { useChatScroll } from '@/hooks/use-chat-scroll'
 import { useResponsiveLayout } from '@/hooks/use-responsive-layout'
 import { useAppShellStore } from '@/stores/app-shell-store'
@@ -13,7 +14,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { getInitials } from '@/lib/utils'
-import { ChatRequestPopover } from '@/features/chat/chat-request-popover'
+import { InvitationInboxPanel } from '@/features/chat/invitation-inbox-panel'
 import { NewChatDialog } from '@/features/chat/new-chat-dialog'
 import { ChatContactPopover } from '@/features/chat/chat-contact-popover'
 import { format } from 'date-fns'
@@ -29,6 +30,7 @@ import {
   SmilePlus,
   MessageSquare,
   UserPlus,
+  Inbox,
   Check,
   ArrowDown,
   ChevronLeft,
@@ -44,11 +46,15 @@ export function ChatView() {
   const { isDesktop, isMobile } = useResponsiveLayout()
   const { setMobileBottomNavVisible } = useAppShellStore()
   const [activeTab, setActiveTab] = useState<'chats'|'friends'>('chats')
-  const [activeChatId, setActiveChatId] = useState<string | null>(null)
+  const [activeConversation, setActiveConversation] = useState<
+    { type: 'inbox' } | { type: 'chat'; id: string } | null
+  >(null)
   
   const { friendshipsQuery, sendFriendRequest, updateFriendship } = useFriendships()
   const { chatsQuery, createChat } = useChats()
   const { chatRequestsQuery, respondToChatRequestMutation } = useChatRequests()
+  const { invitationsQuery: incomingTeamInvitationsQuery } = useIncomingTeamInvitations()
+  const { respondToTeamInvitationMutation } = useRespondToTeamInvitation()
   
   const [messageText, setMessageText] = useState('')
   const [showEmoji, setShowEmoji] = useState(false)
@@ -63,18 +69,25 @@ export function ChatView() {
   const chats = useMemo(() => chatsQuery.data ?? [], [chatsQuery.data])
   const friendships = useMemo(() => friendshipsQuery.data ?? [], [friendshipsQuery.data])
   const incomingChatRequests = useMemo(() => chatRequestsQuery.data ?? [], [chatRequestsQuery.data])
+  const incomingTeamInvitations = useMemo(
+    () => incomingTeamInvitationsQuery.data ?? [],
+    [incomingTeamInvitationsQuery.data]
+  )
   const isChatListLoading = chatsQuery.isLoading
   const isFriendListLoading = friendshipsQuery.isLoading
-  const isChatRequestsLoading = chatRequestsQuery.isLoading
+  const isInboxLoading = chatRequestsQuery.isLoading || incomingTeamInvitationsQuery.isLoading
 
   const pendingFriendRequests = friendships.filter((f: any) => f.status === 'pending' && f.recipient_id === user?.id)
   const acceptedFriends = friendships.filter((f: any) => f.status === 'accepted')
+  const inboxCount = incomingChatRequests.length + incomingTeamInvitations.length
 
   function insertEmoji(emoji: string) {
     setMessageText((prev) => prev + emoji)
     setShowEmoji(false)
   }
 
+  const activeChatId = activeConversation?.type === 'chat' ? activeConversation.id : null
+  const isInboxActive = activeConversation?.type === 'inbox'
   const activeChat = useMemo(() => chats.find(c => c.id === activeChatId), [chats, activeChatId])
   const {
     messagesQuery,
@@ -116,12 +129,12 @@ export function ChatView() {
       return
     }
 
-    setMobileBottomNavVisible(!activeChat)
+    setMobileBottomNavVisible(!activeConversation)
 
     return () => {
       setMobileBottomNavVisible(true)
     }
-  }, [activeChat, isMobile, setMobileBottomNavVisible])
+  }, [activeConversation, isMobile, setMobileBottomNavVisible])
 
   useEffect(() => {
     if (!activeChatId || !sendMessage.isSuccess) return
@@ -194,13 +207,13 @@ export function ChatView() {
     const existing = findExistingDirectChat(friendId)
 
     if (existing) {
-      setActiveChatId(existing.id)
+      setActiveConversation({ type: 'chat', id: existing.id })
       setActiveTab('chats')
       setShowNewChat(false)
     } else {
       createChat.mutate({ participantIds: [friendId], isGroup: false }, {
         onSuccess: (newChat: any) => {
-          setActiveChatId(newChat.id)
+          setActiveConversation({ type: 'chat', id: newChat.id })
           setActiveTab('chats')
           setShowNewChat(false)
         }
@@ -214,7 +227,7 @@ export function ChatView() {
       {
         onSuccess: (chatId) => {
           if (chatId) {
-            setActiveChatId(chatId)
+            setActiveConversation({ type: 'chat', id: chatId })
             setActiveTab('chats')
           }
         },
@@ -226,11 +239,25 @@ export function ChatView() {
     respondToChatRequestMutation.mutate({ requestId, action: 'rejected' })
   }
 
+  function handleAcceptTeamInvitation(invitationId: string) {
+    respondToTeamInvitationMutation.mutate({
+      invitationId,
+      action: 'accepted',
+    })
+  }
+
+  function handleRejectTeamInvitation(invitationId: string) {
+    respondToTeamInvitationMutation.mutate({
+      invitationId,
+      action: 'rejected',
+    })
+  }
+
   return (
     <div className="flex-1 flex h-full overflow-hidden relative">
       <div
         className={`border-r border-border bg-card/30 shrink-0 ${
-          !isDesktop && activeChat ? 'hidden' : 'flex'
+          !isDesktop && activeConversation ? 'hidden' : 'flex'
         } ${isDesktop ? 'w-80' : 'w-full'} flex-col`}
       >
         <div className="p-3 border-b border-border flex flex-col gap-3">
@@ -253,21 +280,41 @@ export function ChatView() {
           {activeTab === 'chats' ? (
             <div className="p-2 space-y-1">
               <div className="px-2 pb-2 pt-1 flex items-center justify-between">
-                <span className="text-xs font-semibold text-muted-foreground uppercase">Recent</span>
+                <span className="text-xs font-semibold text-muted-foreground uppercase">Conversations</span>
                 <div className="flex items-center gap-1">
-                  <ChatRequestPopover
-                    requests={incomingChatRequests}
-                    onAccept={handleAcceptChatRequest}
-                    onReject={handleRejectChatRequest}
-                    isPending={respondToChatRequestMutation.isPending}
-                    activeRequestId={respondToChatRequestMutation.variables?.requestId}
-                    isLoading={isChatRequestsLoading}
-                  />
                   <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setShowNewChat(true)}>
                     <Plus className="w-4 h-4" />
                   </Button>
                 </div>
               </div>
+              <button
+                type="button"
+                onClick={() => setActiveConversation({ type: 'inbox' })}
+                className={`w-full rounded-xl border p-3 text-left transition-all ${
+                  isInboxActive
+                    ? 'border-primary/30 bg-primary/10'
+                    : 'border-border/60 bg-card/50 hover:bg-accent'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/12 text-primary">
+                    <Inbox className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="truncate text-sm font-semibold">Inbox</span>
+                      {inboxCount > 0 ? (
+                        <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-primary-foreground">
+                          {inboxCount > 99 ? '99+' : inboxCount}
+                        </span>
+                      ) : null}
+                    </div>
+                    <p className="truncate text-xs text-muted-foreground">
+                      Chat request dan undangan tim masuk
+                    </p>
+                  </div>
+                </div>
+              </button>
               {isChatListLoading ? (
                 Array.from({ length: 7 }).map((_, index) => (
                   <div key={index} className="flex items-center gap-3 rounded-xl p-2">
@@ -300,11 +347,11 @@ export function ChatView() {
                     >
                       <ChatContactPopover
                         contact={getChatContact(chat)}
-                        onOpenChat={() => setActiveChatId(chat.id)}
+                        onOpenChat={() => setActiveConversation({ type: 'chat', id: chat.id })}
                       />
                       <button
                         type="button"
-                        onClick={() => setActiveChatId(chat.id)}
+                        onClick={() => setActiveConversation({ type: 'chat', id: chat.id })}
                         className="flex-1 min-w-0 text-left"
                       >
                         <div className="flex justify-between items-baseline mb-0.5">
@@ -445,10 +492,10 @@ export function ChatView() {
 
       <div
         className={`bg-background relative z-10 ${
-          !isDesktop && !activeChat ? 'hidden' : 'flex flex-1 min-w-0 flex-col'
+          !isDesktop && !activeConversation ? 'hidden' : 'flex flex-1 min-w-0 flex-col'
         }`}
       >
-        {!activeChat ? (
+        {!activeConversation ? (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center space-y-4 max-w-sm px-4">
               <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-primary/20">
@@ -459,6 +506,33 @@ export function ChatView() {
               <Button onClick={() => setShowNewChat(true)}>Start a new chat</Button>
             </div>
           </div>
+        ) : isInboxActive ? (
+          <>
+            {!isDesktop ? (
+              <div className="sticky top-0 z-30 border-b border-border bg-card/85 px-4 py-3 backdrop-blur [padding-top:max(env(safe-area-inset-top),0px)]">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9 rounded-full"
+                  onClick={() => setActiveConversation(null)}
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </Button>
+              </div>
+            ) : null}
+            <InvitationInboxPanel
+              chatRequests={incomingChatRequests}
+              teamInvitations={incomingTeamInvitations}
+              isLoading={isInboxLoading}
+              respondingChatRequestId={respondToChatRequestMutation.variables?.requestId}
+              respondingTeamInvitationId={respondToTeamInvitationMutation.variables?.invitationId}
+              onAcceptChatRequest={handleAcceptChatRequest}
+              onRejectChatRequest={handleRejectChatRequest}
+              onAcceptTeamInvitation={handleAcceptTeamInvitation}
+              onRejectTeamInvitation={handleRejectTeamInvitation}
+            />
+          </>
         ) : (
           <>
             <div className="sticky top-0 h-16 border-b border-border px-4 md:px-5 flex items-center gap-3 md:gap-4 bg-card/85 backdrop-blur shrink-0 shadow-sm z-30 [padding-top:max(env(safe-area-inset-top),0px)]">
@@ -468,7 +542,7 @@ export function ChatView() {
                   variant="ghost"
                   size="icon"
                   className="h-9 w-9 shrink-0 rounded-full"
-                  onClick={() => setActiveChatId(null)}
+                  onClick={() => setActiveConversation(null)}
                 >
                   <ChevronLeft className="w-5 h-5" />
                 </Button>
