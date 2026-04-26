@@ -54,6 +54,7 @@ export function MessageBubble({
 }: MessageBubbleProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [editText, setEditText] = useState('')
+  const [isExpanded, setIsExpanded] = useState(false)
 
   const isImage = message.file_type?.startsWith('image/')
   const status = message.status || 'sent'
@@ -67,7 +68,7 @@ export function MessageBubble({
     if (!s) return false
     // Simplified robust emoji regex
     try {
-      const emojiOnlyRegex = /^[\p{Extended_Pictographic}\u{200D}\u{FE0F}]+$/u
+      const emojiOnlyRegex = /^(\p{Extended_Pictographic}|\u{200D}|\u{FE0F})+$/u
       return emojiOnlyRegex.test(s)
     } catch {
       return false
@@ -300,13 +301,54 @@ export function MessageBubble({
                 ) : null}
 
                 {/* Text content */}
-                {!message.file_url && (
-                  <p className={`wrap-break-word ${isLargeEmoji ? 'text-5xl' : isEmojiOnly ? 'text-3xl' : 'text-[15px] leading-relaxed'}`}>
-                    {message.content}
-                  </p>
-                )}
+                {(() => {
+                  const content = message.content || ''
+                  const limit = 600
+                  const isLong = content.length > limit
+                  const displayContent = (!isExpanded && isLong) ? content.slice(0, limit) + '...' : content
+                  
+                  if (message.file_url) return null
+
+                  return (
+                    <div className="relative">
+                      <p className={`wrap-break-word ${isLargeEmoji ? 'text-5xl' : isEmojiOnly ? 'text-3xl' : 'text-[15px] leading-relaxed'}`}>
+                        {displayContent}
+                      </p>
+                      {isLong && (
+                        <button
+                          type="button"
+                          onClick={() => setIsExpanded(!isExpanded)}
+                          className={`mt-1 text-xs font-semibold hover:underline block cursor-pointer ${
+                            isOwn && !isRequestIntro ? 'text-primary-foreground/80' : 'text-primary'
+                          }`}
+                        >
+                          {isExpanded ? 'Sembunyikan' : 'Lihat selengkapnya..'}
+                        </button>
+                      )}
+                    </div>
+                  )
+                })()}
+
+                {/* File caption with same logic */}
                 {message.file_url && !message.content.startsWith('📎') && (
-                  <p className="mt-2 wrap-break-word text-[15px] leading-relaxed">{message.content}</p>
+                  <div className="mt-2">
+                    <p className="wrap-break-word text-[15px] leading-relaxed">
+                      {!isExpanded && message.content.length > 300 
+                        ? message.content.slice(0, 300) + '...' 
+                        : message.content}
+                    </p>
+                    {message.content.length > 300 && (
+                      <button
+                        type="button"
+                        onClick={() => setIsExpanded(!isExpanded)}
+                        className={`mt-1 text-xs font-semibold hover:underline block ${
+                          isOwn && !isRequestIntro ? 'text-primary-foreground/80' : 'text-primary'
+                        }`}
+                      >
+                        {isExpanded ? 'Sembunyikan' : 'Lihat selengkapnya..'}
+                      </button>
+                    )}
+                  </div>
                 )}
               </>
             )}

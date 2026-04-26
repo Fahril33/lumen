@@ -271,3 +271,9 @@ body {
     opacity: 1;
   }
 }
+
+.wrap-break-word {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
