@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { marked } from "marked";
 
 type AiProvider = 'gemini' | 'openai';
 
@@ -31,79 +32,17 @@ function stripCodeFences(value: string) {
     .trim()
 }
 
-function escapeHtml(value: string) {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;')
-}
-
-function formatInlineMarkdownToHtml(value: string) {
-  const escaped = escapeHtml(value)
-
-  return escaped
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/(^|[^*])\*(?!\s)(.+?)(?<!\s)\*/g, '$1<em>$2</em>')
-    .replace(/`([^`]+)`/g, '<code>$1</code>')
-}
-
-function convertMarkdownishTextToHtml(value: string) {
-  const lines = value
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-
-  const blocks: string[] = []
-  let listBuffer: string[] = []
-
-  const flushList = () => {
-    if (listBuffer.length === 0) return
-    blocks.push(`<ul>${listBuffer.map((item) => `<li>${formatInlineMarkdownToHtml(item)}</li>`).join('')}</ul>`)
-    listBuffer = []
-  }
-
-  for (const line of lines) {
-    if (!line) {
-      flushList()
-      continue
-    }
-
-    const headingMatch = line.match(/^(#{1,3})\s+(.+)$/)
-    if (headingMatch) {
-      flushList()
-      const level = headingMatch[1].length
-      blocks.push(`<h${level}>${formatInlineMarkdownToHtml(headingMatch[2])}</h${level}>`)
-      continue
-    }
-
-    const bulletMatch = line.match(/^[-*]\s+(.+)$/)
-    if (bulletMatch) {
-      listBuffer.push(bulletMatch[1])
-      continue
-    }
-
-    flushList()
-    blocks.push(`<p>${formatInlineMarkdownToHtml(line)}</p>`)
-  }
-
-  flushList()
-
-  return blocks.join('\n')
-}
-
-function normalizeAiOutputForTiptap(value: string) {
+async function normalizeAiOutputForTiptap(value: string) {
   const cleaned = stripCodeFences(value)
 
   if (!cleaned) {
     return '<p></p>'
   }
 
-  if (/<\/?(p|h1|h2|h3|ul|ol|li|strong|em|blockquote|code|pre|hr|br)\b/i.test(cleaned)) {
-    return cleaned
-  }
-
-  return convertMarkdownishTextToHtml(cleaned)
+  // Use marked to robustly parse Markdown to HTML.
+  // It natively handles plain text, Markdown, and even existing HTML perfectly.
+  const html = await marked.parse(cleaned, { async: true })
+  return html
 }
 
 function buildEditorPrompt(
@@ -162,7 +101,7 @@ async function requestGeminiNeatify({
     buildEditorPrompt(text, customInstructions, language)
   );
 
-  return normalizeAiOutputForTiptap(result.response.text());
+  return await normalizeAiOutputForTiptap(result.response.text());
 }
 
 function extractOpenAiResponseText(payload: OpenAiResponsesApiResponse) {
@@ -211,7 +150,7 @@ async function requestOpenAiNeatify({
     throw new Error('OpenAI returned an empty response.');
   }
 
-  return normalizeAiOutputForTiptap(outputText);
+  return await normalizeAiOutputForTiptap(outputText);
 }
 
 const providerHandlers: Record<AiProvider, (request: NeatifyTextRequest) => Promise<string>> = {
@@ -231,7 +170,7 @@ export async function neatifyTextWithAi(
   const handler = providerHandlers[normalizedProvider];
 
   if (!handler) {
-    return Promise.resolve(normalizeAiOutputForTiptap(text))
+    return await normalizeAiOutputForTiptap(text)
   }
 
   try {

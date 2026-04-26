@@ -37,6 +37,7 @@ interface FolderTreeNodeProps {
   onDeleteFolder: (id: string) => void
   onDeleteNote: (id: string) => void
   onToggleExpand: (id: string, expanded: boolean) => void
+  onMoveItem: (itemId: string, itemType: 'folder' | 'note', newParentId: string | null) => void
 }
 
 export function FolderTreeNode({
@@ -49,6 +50,7 @@ export function FolderTreeNode({
   onDeleteFolder,
   onDeleteNote,
   onToggleExpand,
+  onMoveItem,
 }: FolderTreeNodeProps) {
   const { activeNoteId, setActiveNoteId } = useNotesStore()
   const [isRenaming, setIsRenaming] = useState(false)
@@ -200,6 +202,12 @@ export function FolderTreeNode({
                 <Pencil className="w-3.5 h-3.5 mr-2" />
                 Rename
               </DropdownMenuItem>
+              {item.parentId !== null && (
+                <DropdownMenuItem onClick={() => onMoveItem(item.id, item.type, null)}>
+                  <Folder className="w-3.5 h-3.5 mr-2" />
+                  Move to Root
+                </DropdownMenuItem>
+              )}
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 onClick={() => isFolder ? onDeleteFolder(item.id) : onDeleteNote(item.id)}
@@ -228,6 +236,7 @@ export function FolderTreeNode({
               onDeleteFolder={onDeleteFolder}
               onDeleteNote={onDeleteNote}
               onToggleExpand={onToggleExpand}
+              onMoveItem={onMoveItem}
             />
           ))}
         </div>

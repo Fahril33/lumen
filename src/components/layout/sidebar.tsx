@@ -429,10 +429,10 @@ export function Sidebar({ activeNav, onNavChange, isMobileKeyboardOpen = false }
             <div className={`mb-3 flex items-center ${showLabels ? 'justify-between' : 'justify-center'}`}>
               {showLabels ? (
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                    Workspace
+                  <p className="text-s font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                    Lumen
                   </p>
-                  <p className="text-sm text-sidebar-foreground/80">Adaptive navigation</p>
+                  <p className="text-xs text-sidebar-foreground/80">made with ❤️ by Ril</p>
                 </div>
               ) : null}
               <Button

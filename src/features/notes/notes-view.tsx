@@ -39,6 +39,23 @@ export function NotesView() {
 
   const isTreeLoading = foldersQuery.isLoading || notesQuery.isLoading
 
+  // If active note is deleted or no longer in the tree, clear it
+  useEffect(() => {
+    if (!activeNoteId || isTreeLoading) return
+    const findNote = (items: typeof tree): boolean => {
+      for (const item of items) {
+        if (item.id === activeNoteId && item.type === 'note') return true
+        if (item.children) {
+          if (findNote(item.children)) return true
+        }
+      }
+      return false
+    }
+    if (!findNote(tree)) {
+      setActiveNoteId(null)
+    }
+  }, [tree, activeNoteId, isTreeLoading, setActiveNoteId])
+
   if (!currentTeam) {
     return (
       <div className="flex-1 flex items-center justify-center">
@@ -83,7 +100,7 @@ export function NotesView() {
               variant="ghost"
               size="sm"
               className="flex-1 h-7 text-xs gap-1.5"
-              onClick={() => createNoteMutation.mutate({})}
+              onClick={() => createNoteMutation.mutate({}, { onSuccess: (data) => setActiveNoteId(data.id) })}
               disabled={isTreeLoading}
             >
               <FilePlus className="w-3.5 h-3.5" />
@@ -102,7 +119,7 @@ export function NotesView() {
               searchQuery={searchQuery}
               isLoading={isTreeLoading}
               onCreateFolder={(parentId) => createFolderMutation.mutate({ name: 'New Folder', parentId })}
-              onCreateNote={(folderId) => createNoteMutation.mutate({ folderId })}
+              onCreateNote={(folderId) => createNoteMutation.mutate({ folderId }, { onSuccess: (data) => setActiveNoteId(data.id) })}
               onRenameFolder={(id, name) => updateFolderMutation.mutate({ id, updates: { name } })}
               onRenameNote={(id, title) => updateNoteMutation.mutate({ id, updates: { title } })}
               onDeleteFolder={(id) => deleteFolderMutation.mutate(id)}
@@ -115,6 +132,15 @@ export function NotesView() {
                   updateNoteMutation.mutate({ id: itemId, updates: { folder_id: newParentId } })
                 }
               }}
+              onReorderItems={(updates) => {
+                updates.forEach(u => {
+                  if (u.type === 'folder') {
+                    updateFolderMutation.mutate({ id: u.id, updates: { sort_order: u.sort_order } })
+                  } else {
+                    updateNoteMutation.mutate({ id: u.id, updates: { sort_order: u.sort_order } })
+                  }
+                })
+              }}
             />
           </div>
         </ScrollArea>
@@ -123,7 +149,7 @@ export function NotesView() {
       detail={
         <div className="notes-editor-container-main flex flex-col h-full overflow-hidden">
           {activeNoteId ? (
-            <NoteEditor noteId={activeNoteId} />
+            <NoteEditor key={activeNoteId} noteId={activeNoteId} />
           ) : (
             <div className="flex-1 flex items-center justify-center">
               <div className="text-center space-y-3">

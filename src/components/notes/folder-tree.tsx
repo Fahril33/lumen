@@ -30,6 +30,7 @@ interface FolderTreeProps {
   onDeleteNote: (id: string) => void
   onToggleExpand: (id: string, expanded: boolean) => void
   onMoveItem: (itemId: string, itemType: 'folder' | 'note', newParentId: string | null) => void
+  onReorderItems?: (updates: { id: string, type: 'folder' | 'note', sort_order: number }[]) => void
 }
 
 export function FolderTree({
@@ -44,6 +45,7 @@ export function FolderTree({
   onDeleteNote,
   onToggleExpand,
   onMoveItem,
+  onReorderItems,
 }: FolderTreeProps) {
   const [activeItem, setActiveItem] = useState<FolderTreeItem | null>(null)
 
@@ -133,12 +135,58 @@ export function FolderTree({
 
     if (!draggedItem || !overItem) return
 
-    // If dropping onto a folder, move inside it
-    if (overItem.type === 'folder') {
+    // If dropping a note onto a folder (and they aren't already in the same parent being reordered)
+    // Or if we specifically want to nest:
+    const isNesting = overItem.type === 'folder' && draggedItem.parentId !== overItem.id && overItem.id !== draggedItem.parentId
+
+    if (isNesting) {
       onMoveItem(draggedItem.id, draggedItem.type, overItem.id)
     } else {
-      // Drop alongside the target (same parent)
-      onMoveItem(draggedItem.id, draggedItem.type, overItem.parentId)
+      // Reordering within the same parent (or alongside the target)
+      const targetParentId = overItem.parentId
+      
+      if (draggedItem.parentId !== targetParentId) {
+        // Move to new parent first
+        onMoveItem(draggedItem.id, draggedItem.type, targetParentId)
+      } else if (onReorderItems) {
+        // Same parent, calculate new sort order
+        function getChildren(pid: string | null, itemsList: FolderTreeItem[]): FolderTreeItem[] {
+          if (pid === null) return itemsList
+          const parent = findItem(pid, itemsList)
+          return parent ? parent.children : []
+        }
+
+        const siblings = getChildren(targetParentId, items)
+          .sort((a, b) => a.sortOrder - b.sortOrder)
+
+        const filteredSiblings = siblings.filter(i => i.id !== draggedItem.id)
+        const overIndex = filteredSiblings.findIndex(i => i.id === overItem.id)
+        
+        // Insert dragged item at the drop index
+        if (overIndex !== -1) {
+          // If dragging down, place after overItem. If dragging up, place before.
+          // active.data.current?.sortable?.index could tell us direction, but DndKit closestCenter is usually accurate enough.
+          filteredSiblings.splice(overIndex, 0, draggedItem)
+        } else {
+          filteredSiblings.push(draggedItem)
+        }
+
+        const updates = filteredSiblings.map((item, index) => ({
+          id: item.id,
+          type: item.type,
+          sort_order: index * 10
+        }))
+
+        // Only send updates for items whose sort_order actually changed
+        const changedUpdates = updates.filter(u => {
+          const orig = siblings.find(s => s.id === u.id)
+          return orig && orig.sortOrder !== u.sort_order
+        })
+
+        if (changedUpdates.length > 0) {
+          onReorderItems(changedUpdates)
+        }
+      }
     }
   }
 

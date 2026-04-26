@@ -35,7 +35,9 @@ import {
   Save,
   Clock,
   Check,
+  Copy,
 } from 'lucide-react'
+import { toast } from 'sonner'
 import { AiToolbarButton } from './ai-toolbar-button'
 import type { JSONContent } from '@tiptap/react'
 
@@ -47,7 +49,11 @@ export function NoteEditor({ noteId }: NoteEditorProps) {
   const { noteQuery, saveNoteMutation } = useNote(noteId)
   const note = noteQuery.data
   const titleRef = useRef<HTMLInputElement>(null)
+  
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  // Track pending save data to flush it on unmount or visibility change
+  const pendingSaveDataRef = useRef<{ title?: string; content?: Record<string, unknown> } | null>(null)
+  
   // Track the current noteId in a ref so debounced callbacks always target the correct note
   const activeNoteIdRef = useRef(noteId)
   const normalizedContent = normalizeTiptapContent(note?.content)
@@ -65,16 +71,35 @@ export function NoteEditor({ noteId }: NoteEditorProps) {
     activeNoteIdRef.current = noteId
   }, [noteId])
 
-  // Clear any pending save when noteId changes (prevents stale saves to wrong note)
+  // Flush any pending save when component unmounts or noteId changes
   useEffect(() => {
     setHasUnsavedChanges(false)
     return () => {
-      if (saveTimeoutRef.current) {
+      if (saveTimeoutRef.current && pendingSaveDataRef.current) {
         clearTimeout(saveTimeoutRef.current)
         saveTimeoutRef.current = undefined
+        saveNoteMutation.mutate(pendingSaveDataRef.current)
+        pendingSaveDataRef.current = null
       }
     }
-  }, [noteId])
+  }, [noteId, saveNoteMutation])
+
+  // Flush any pending save when window/tab loses visibility
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden' && saveTimeoutRef.current && pendingSaveDataRef.current) {
+        clearTimeout(saveTimeoutRef.current)
+        saveTimeoutRef.current = undefined
+        saveNoteMutation.mutate(pendingSaveDataRef.current)
+        pendingSaveDataRef.current = null
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [saveNoteMutation])
 
   const editor = useEditor({
     extensions: [
@@ -93,16 +118,23 @@ export function NoteEditor({ noteId }: NoteEditorProps) {
     onUpdate: ({ editor: ed }) => {
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
 
-      // Check autoSave state via a closure-safe approach (read from DOM or ref won't work,
-      // but since useEditor recreates on [noteId], the latest autoSave is captured)
-      // We use a ref-based approach below instead
+      // Also trigger a toolbar tick so undo/redo disabled states update while typing
+      setToolbarTick((t) => t + 1)
+
       const shouldAutoSave = autoSaveRef.current
 
       if (shouldAutoSave) {
+        // Track the pending data for potential unmount flush
+        pendingSaveDataRef.current = {
+          ...pendingSaveDataRef.current,
+          content: ed.getJSON() as Record<string, unknown>
+        }
+
         // Debounced auto-save
         saveTimeoutRef.current = setTimeout(() => {
-          if (activeNoteIdRef.current === noteId) {
-            saveNoteMutation.mutate({ content: ed.getJSON() as Record<string, unknown> })
+          if (activeNoteIdRef.current === noteId && pendingSaveDataRef.current) {
+            saveNoteMutation.mutate(pendingSaveDataRef.current)
+            pendingSaveDataRef.current = null
           }
         }, 1000)
       } else {
@@ -124,14 +156,15 @@ export function NoteEditor({ noteId }: NoteEditorProps) {
 
   // Update editor content when note changes (e.g. from realtime)
   useEffect(() => {
-    if (editor && note?.content && !editor.isFocused) {
+    const hasLocalChanges = !!pendingSaveDataRef.current || hasUnsavedChanges || !!saveTimeoutRef.current
+    if (editor && note?.content && !hasLocalChanges && !editor.isFocused) {
       const currentContent = JSON.stringify(editor.getJSON())
       const newContent = JSON.stringify(normalizedContent)
       if (currentContent !== newContent) {
         editor.commands.setContent(normalizedContent as JSONContent)
       }
     }
-  }, [editor, normalizedContent, note?.content])
+  }, [editor, normalizedContent, note?.content, hasUnsavedChanges])
 
   // Sync the title input when noteId changes (defaultValue doesn't update on re-render)
   useEffect(() => {
@@ -145,9 +178,15 @@ export function NoteEditor({ noteId }: NoteEditorProps) {
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
 
       if (autoSaveRef.current) {
+        pendingSaveDataRef.current = {
+          ...pendingSaveDataRef.current,
+          title: e.target.value
+        }
+
         saveTimeoutRef.current = setTimeout(() => {
-          if (activeNoteIdRef.current === noteId) {
-            saveNoteMutation.mutate({ title: e.target.value })
+          if (activeNoteIdRef.current === noteId && pendingSaveDataRef.current) {
+            saveNoteMutation.mutate(pendingSaveDataRef.current)
+            pendingSaveDataRef.current = null
           }
         }, 500)
       } else {
@@ -166,9 +205,38 @@ export function NoteEditor({ noteId }: NoteEditorProps) {
       updates.title = titleRef.current.value
     }
     saveNoteMutation.mutate(updates, {
-      onSuccess: () => setHasUnsavedChanges(false),
+      onSuccess: () => {
+        setHasUnsavedChanges(false)
+        pendingSaveDataRef.current = null
+      },
     })
   }, [editor, noteId, saveNoteMutation])
+
+  const handleCopy = useCallback(() => {
+    if (!editor) return
+
+    const { from, to, empty } = editor.state.selection
+    let text = ""
+
+    if (empty) {
+      // Copy all text with clean line breaks
+      text = editor.getText({ blockSeparator: '\n' })
+    } else {
+      // Copy only selection
+      text = editor.state.doc.textBetween(from, to, '\n')
+    }
+
+    if (!text) {
+      toast.error('No content to copy')
+      return
+    }
+
+    navigator.clipboard.writeText(text).then(() => {
+      toast.success(empty ? 'All content copied' : 'Selection copied')
+    }).catch(() => {
+      toast.error('Failed to copy')
+    })
+  }, [editor])
 
   if (noteQuery.isLoading) {
     return (
@@ -314,7 +382,11 @@ export function NoteEditor({ noteId }: NoteEditorProps) {
                         variant="ghost"
                         size="icon"
                         className={`h-7 w-7 shrink-0 ${b.active ? 'bg-accent text-accent-foreground' : ''} ${b.disabled ? 'opacity-40' : ''}`}
-                        onClick={b.action}
+                        onClick={() => {
+                          b.action()
+                          setToolbarTick((t) => t + 1)
+                        }}
+                        onMouseDown={(e) => e.preventDefault()}
                         disabled={b.disabled}
                       >
                         {b.icon}
@@ -325,6 +397,19 @@ export function NoteEditor({ noteId }: NoteEditorProps) {
                 )
               })}
             </div>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                  onClick={handleCopy}
+                >
+                  <Copy className="w-4 h-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Copy content</TooltipContent>
+            </Tooltip>
             <AiToolbarButton editor={editor} />
           </div>
         </div>

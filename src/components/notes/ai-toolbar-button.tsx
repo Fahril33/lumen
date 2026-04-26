@@ -27,7 +27,15 @@ export function AiToolbarButton({ editor }: AiToolbarButtonProps) {
       return
     }
 
-    const currentContent = editor.state.doc.textBetween(0, editor.state.doc.content.size, '\n\n')
+    const { from, to, empty } = editor.state.selection
+    // Get text to process. We use text, but keep block separation to help the AI.
+    let currentContent = ''
+    if (empty) {
+      currentContent = editor.getText({ blockSeparator: '\n\n' })
+    } else {
+      currentContent = editor.state.doc.textBetween(from, to, '\n\n')
+    }
+
     if (!currentContent.trim()) {
       toast.info('There is no content to neatify.')
       return
@@ -43,11 +51,17 @@ export function AiToolbarButton({ editor }: AiToolbarButtonProps) {
         profile.ai_custom_instructions,
         profile.ai_language
       )
-      editor.commands.setContent(neatifiedContent)
-      toast.success('Note neatified successfully!')
+      
+      if (empty) {
+        editor.commands.setContent(neatifiedContent)
+      } else {
+        editor.commands.insertContentAt({ from, to }, neatifiedContent)
+      }
+      
+      toast.success('Text beautified successfully!')
     } catch (error) {
       console.error('Error neatifying note:', error)
-      toast.error('Failed to neatify the note.')
+      toast.error('Failed to beautify the text.')
     } finally {
       setIsRunning(false)
     }
