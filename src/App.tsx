@@ -96,7 +96,7 @@ export function App() {
         isMobileKeyboardOpen={isMobileKeyboardOpen}
       />
       <main
-        className={`flex-1 min-h-0 flex flex-col overflow-hidden overscroll-none ${
+        className={`flex-1 min-h-0 flex flex-col overflow-y-auto overscroll-none ${
           isMobile && mobileBottomNavVisible && !isMobileKeyboardOpen ? 'mb-20' : ''
         }`}
       >

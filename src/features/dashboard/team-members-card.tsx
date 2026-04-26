@@ -124,29 +124,7 @@ export function TeamMembersCard({ teamId, teamInviteCode }: TeamMembersCardProps
       </CardHeader>
 
       <CardContent className="space-y-4">
-        <div className="rounded-2xl border border-border/60 bg-card/40 px-4 py-3">
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                Invitation ID
-              </p>
-              <p className="truncate text-sm font-medium">{teamInviteCode || 'Loading...'}</p>
-            </div>
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              className="shrink-0"
-              onClick={() => {
-                void handleCopyInvitationId()
-              }}
-              disabled={!teamInviteCode}
-            >
-              <Copy className="h-4 w-4" />
-              Copy
-            </Button>
-          </div>
-        </div>
+
 
         <ScrollArea className="h-[400px]">
           <div className="space-y-2">
