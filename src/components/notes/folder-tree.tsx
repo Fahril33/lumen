@@ -221,6 +221,7 @@ export function FolderTree({
               onDeleteFolder={onDeleteFolder}
               onDeleteNote={onDeleteNote}
               onToggleExpand={onToggleExpand}
+              onMoveItem={onMoveItem}
             />
           ))}
         </div>
