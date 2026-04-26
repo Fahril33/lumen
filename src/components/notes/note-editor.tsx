@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Switch } from '@/components/ui/switch'
 import {
   Tooltip,
   TooltipContent,
@@ -33,6 +34,7 @@ import {
   Minus,
   Save,
   Clock,
+  Check,
 } from 'lucide-react'
 import { AiToolbarButton } from './ai-toolbar-button'
 import type { JSONContent } from '@tiptap/react'
@@ -46,7 +48,33 @@ export function NoteEditor({ noteId }: NoteEditorProps) {
   const note = noteQuery.data
   const titleRef = useRef<HTMLInputElement>(null)
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  // Track the current noteId in a ref so debounced callbacks always target the correct note
+  const activeNoteIdRef = useRef(noteId)
   const normalizedContent = normalizeTiptapContent(note?.content)
+
+  // Force toolbar re-render on selection/transaction changes
+  const [, setToolbarTick] = useState(0)
+
+  // Autosave toggle state
+  const [autoSave, setAutoSave] = useState(true)
+  // Track whether there are unsaved changes (only relevant when autosave is off)
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+
+  // Keep activeNoteIdRef in sync
+  useEffect(() => {
+    activeNoteIdRef.current = noteId
+  }, [noteId])
+
+  // Clear any pending save when noteId changes (prevents stale saves to wrong note)
+  useEffect(() => {
+    setHasUnsavedChanges(false)
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current)
+        saveTimeoutRef.current = undefined
+      }
+    }
+  }, [noteId])
 
   const editor = useEditor({
     extensions: [
@@ -63,13 +91,36 @@ export function NoteEditor({ noteId }: NoteEditorProps) {
       },
     },
     onUpdate: ({ editor: ed }) => {
-      // Debounced auto-save
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
-      saveTimeoutRef.current = setTimeout(() => {
-        saveNoteMutation.mutate({ content: ed.getJSON() as Record<string, unknown> })
-      }, 1000)
+
+      // Check autoSave state via a closure-safe approach (read from DOM or ref won't work,
+      // but since useEditor recreates on [noteId], the latest autoSave is captured)
+      // We use a ref-based approach below instead
+      const shouldAutoSave = autoSaveRef.current
+
+      if (shouldAutoSave) {
+        // Debounced auto-save
+        saveTimeoutRef.current = setTimeout(() => {
+          if (activeNoteIdRef.current === noteId) {
+            saveNoteMutation.mutate({ content: ed.getJSON() as Record<string, unknown> })
+          }
+        }, 1000)
+      } else {
+        // Mark as dirty
+        setHasUnsavedChanges(true)
+      }
+    },
+    onSelectionUpdate: () => {
+      // Trigger toolbar re-render so active states update on selection change
+      setToolbarTick((t) => t + 1)
     },
   }, [noteId])
+
+  // Keep autoSave accessible to the onUpdate closure
+  const autoSaveRef = useRef(autoSave)
+  useEffect(() => {
+    autoSaveRef.current = autoSave
+  }, [autoSave])
 
   // Update editor content when note changes (e.g. from realtime)
   useEffect(() => {
@@ -82,15 +133,42 @@ export function NoteEditor({ noteId }: NoteEditorProps) {
     }
   }, [editor, normalizedContent, note?.content])
 
+  // Sync the title input when noteId changes (defaultValue doesn't update on re-render)
+  useEffect(() => {
+    if (titleRef.current && note?.title !== undefined) {
+      titleRef.current.value = note.title
+    }
+  }, [noteId, note?.title])
+
   const handleTitleChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
-      saveTimeoutRef.current = setTimeout(() => {
-        saveNoteMutation.mutate({ title: e.target.value })
-      }, 500)
+
+      if (autoSaveRef.current) {
+        saveTimeoutRef.current = setTimeout(() => {
+          if (activeNoteIdRef.current === noteId) {
+            saveNoteMutation.mutate({ title: e.target.value })
+          }
+        }, 500)
+      } else {
+        setHasUnsavedChanges(true)
+      }
     },
-    [saveNoteMutation]
+    [saveNoteMutation, noteId]
   )
+
+  // Manual save handler (used when autosave is off)
+  const handleManualSave = useCallback(() => {
+    if (!editor || activeNoteIdRef.current !== noteId) return
+    const updates: { title?: string; content?: Record<string, unknown> } = {}
+    updates.content = editor.getJSON() as Record<string, unknown>
+    if (titleRef.current) {
+      updates.title = titleRef.current.value
+    }
+    saveNoteMutation.mutate(updates, {
+      onSuccess: () => setHasUnsavedChanges(false),
+    })
+  }, [editor, noteId, saveNoteMutation])
 
   if (noteQuery.isLoading) {
     return (
@@ -136,8 +214,8 @@ export function NoteEditor({ noteId }: NoteEditorProps) {
     { icon: <CodeSquare className="w-4 h-4" />, label: 'Code Block', action: () => editor?.chain().focus().toggleCodeBlock().run(), active: editor?.isActive('codeBlock') },
     { icon: <Minus className="w-4 h-4" />, label: 'Horizontal Rule', action: () => editor?.chain().focus().setHorizontalRule().run(), active: false },
     'separator',
-    { icon: <Undo className="w-4 h-4" />, label: 'Undo', action: () => editor?.chain().focus().undo().run(), active: false },
-    { icon: <Redo className="w-4 h-4" />, label: 'Redo', action: () => editor?.chain().focus().redo().run(), active: false },
+    { icon: <Undo className="w-4 h-4" />, label: 'Undo', action: () => editor?.chain().focus().undo().run(), active: false, disabled: !editor?.can().undo() },
+    { icon: <Redo className="w-4 h-4" />, label: 'Redo', action: () => editor?.chain().focus().redo().run(), active: false, disabled: !editor?.can().redo() },
   ]
 
   return (
@@ -146,6 +224,7 @@ export function NoteEditor({ noteId }: NoteEditorProps) {
         <div className="px-4 pt-4 pb-2 md:px-6 md:pt-6">
           <Input
             ref={titleRef}
+            key={noteId}
             defaultValue={note.title}
             onChange={handleTitleChange}
             className="text-2xl font-bold border-none px-0 h-auto bg-transparent focus-visible:ring-0 placeholder:text-muted-foreground/40"
@@ -158,29 +237,85 @@ export function NoteEditor({ noteId }: NoteEditorProps) {
             </span>
             {saveNoteMutation.isPending && (
               <span className="flex items-center gap-1 text-primary">
-                <Save className="w-3 h-3" />
+                <Save className="w-3 h-3 animate-pulse" />
                 Saving...
               </span>
+            )}
+            {!autoSave && !saveNoteMutation.isPending && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant={hasUnsavedChanges ? 'default' : 'ghost'}
+                    size="sm"
+                    className={`h-6 px-2.5 text-[11px] gap-1.5 rounded-md transition-all ${
+                      hasUnsavedChanges
+                        ? 'bg-primary text-primary-foreground shadow-sm shadow-primary/25 hover:bg-primary/90'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                    onClick={handleManualSave}
+                    disabled={saveNoteMutation.isPending}
+                  >
+                    {hasUnsavedChanges ? (
+                      <>
+                        <Save className="w-3 h-3" />
+                        Save
+                      </>
+                    ) : (
+                      <>
+                        <Check className="w-3 h-3" />
+                        Saved
+                      </>
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {hasUnsavedChanges ? 'Save changes (Ctrl+S)' : 'All changes saved'}
+                </TooltipContent>
+              </Tooltip>
             )}
           </div>
         </div>
 
         <div className="note-toolbar px-4 py-2 md:px-6">
           <div className="flex items-center gap-2">
+            {/* Autosave toggle */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div
+                  className={`flex items-center gap-1.5 rounded-lg px-2 py-1.5 transition-colors shrink-0 cursor-default ${
+                    autoSave ? 'bg-primary/10' : 'bg-muted/50'
+                  }`}
+                >
+                  <Switch
+                    checked={autoSave}
+                    onCheckedChange={setAutoSave}
+                    className="h-4 w-7 data-[state=checked]:bg-primary data-[state=unchecked]:bg-muted-foreground/30 [&_span]:h-3 [&_span]:w-3 [&_span]:data-[state=checked]:translate-x-3 [&_span]:data-[state=unchecked]:translate-x-0.5"
+                  />
+                  <span className={`text-[10px] font-semibold uppercase tracking-wider select-none ${
+                    autoSave ? 'text-primary' : 'text-muted-foreground'
+                  }`}>
+                    Auto
+                  </span>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>{autoSave ? 'Autosave is on' : 'Autosave is off — save manually'}</TooltipContent>
+            </Tooltip>
+
             <div className="flex items-center gap-0.5 overflow-x-auto rounded-lg bg-muted/50 px-2 py-1 flex-1">
               {toolbarButtons.map((btn, i) => {
                 if (btn === 'separator') {
                   return <Separator key={i} orientation="vertical" className="mx-1 h-5 shrink-0" />
                 }
-                const b = btn as { icon: React.ReactNode; label: string; action: () => void; active: boolean | undefined }
+                const b = btn as { icon: React.ReactNode; label: string; action: () => void; active: boolean | undefined; disabled?: boolean }
                 return (
                   <Tooltip key={i}>
                     <TooltipTrigger asChild>
                       <Button
                         variant="ghost"
                         size="icon"
-                        className={`h-7 w-7 shrink-0 ${b.active ? 'bg-accent text-accent-foreground' : ''}`}
+                        className={`h-7 w-7 shrink-0 ${b.active ? 'bg-accent text-accent-foreground' : ''} ${b.disabled ? 'opacity-40' : ''}`}
                         onClick={b.action}
+                        disabled={b.disabled}
                       >
                         {b.icon}
                       </Button>

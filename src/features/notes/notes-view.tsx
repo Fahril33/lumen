@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { useTeamStore } from '@/stores/team-store'
 import { useNotesStore } from '@/stores/notes-store'
 import { useFolders } from '@/hooks/use-notes'
@@ -14,6 +15,16 @@ import { FolderPlus, FilePlus, Search, FileText } from 'lucide-react'
 export function NotesView() {
   const { currentTeam } = useTeamStore()
   const { activeNoteId, searchQuery, setActiveNoteId, setSearchQuery } = useNotesStore()
+  const previousTeamIdRef = useRef(currentTeam?.id)
+
+  // Reset active note and search when switching teams
+  useEffect(() => {
+    if (previousTeamIdRef.current !== currentTeam?.id) {
+      setActiveNoteId(null)
+      setSearchQuery('')
+    }
+    previousTeamIdRef.current = currentTeam?.id
+  }, [currentTeam?.id, setActiveNoteId, setSearchQuery])
   const {
     foldersQuery,
     notesQuery,
