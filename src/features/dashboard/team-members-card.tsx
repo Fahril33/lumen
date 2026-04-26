@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { ScrollArea } from '@/components/ui/scroll-area'
+
 import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -83,8 +83,8 @@ export function TeamMembersCard({ teamId, teamInviteCode }: TeamMembersCardProps
   }
 
   return (
-    <Card className="bg-card/50 backdrop-blur border-border/50">
-      <CardHeader className="pb-3">
+    <Card className="dashboard-team-card bg-card/50 backdrop-blur border-border/50 flex flex-col">
+      <CardHeader className="pb-3 shrink-0">
         <div className="flex items-center justify-between gap-3">
           <CardTitle className="text-base flex items-center gap-2">
             <Users className="w-4 h-4 text-primary" />
@@ -98,7 +98,7 @@ export function TeamMembersCard({ teamId, teamInviteCode }: TeamMembersCardProps
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8"
+                  className="dashboard-team-copy-button h-8 w-8"
                   onClick={() => {
                     void handleCopyInvitationId()
                   }}
@@ -123,11 +123,9 @@ export function TeamMembersCard({ teamId, teamInviteCode }: TeamMembersCardProps
         </div>
       </CardHeader>
 
-      <CardContent className="space-y-4">
-
-
-        <ScrollArea className="h-[400px]">
-          <div className="space-y-2">
+      <CardContent className="flex-1 min-h-0 p-0">
+        <div className="dashboard-team-members-scroll-area max-h-[400px] overflow-y-auto px-6 pb-6 pt-0 touch-pan-y scroll-smooth">
+          <div className="space-y-1">
             {membersQuery.isLoading ? (
               Array.from({ length: 7 }).map((_, index) => (
                 <div key={index} className="flex items-center gap-3 p-2">
@@ -151,7 +149,7 @@ export function TeamMembersCard({ teamId, teamInviteCode }: TeamMembersCardProps
                 return (
                   <div
                     key={member.id}
-                    className="flex items-center gap-3 rounded-lg p-2 transition-colors hover:bg-accent/50"
+                    className="dashboard-team-member-item flex items-center gap-3 rounded-lg p-2 transition-colors hover:bg-accent/50"
                   >
                     <Avatar className="w-8 h-8">
                       <AvatarImage src={memberProfile?.avatar_url ?? undefined} />
@@ -171,7 +169,7 @@ export function TeamMembersCard({ teamId, teamInviteCode }: TeamMembersCardProps
                     </div>
 
                     {friendshipStatus === 'pending' ? (
-                      <span className="rounded-full border border-border/60 px-2 py-1 text-[11px] text-muted-foreground">
+                      <span className="dashboard-team-member-status rounded-full border border-border/60 px-2 py-1 text-[11px] text-muted-foreground">
                         Pending
                       </span>
                     ) : canAddFriend ? (
@@ -181,7 +179,7 @@ export function TeamMembersCard({ teamId, teamInviteCode }: TeamMembersCardProps
                             type="button"
                             size="icon"
                             variant="ghost"
-                            className="h-8 w-8 shrink-0"
+                            className="dashboard-team-member-add-friend h-8 w-8 shrink-0"
                             disabled={sendFriendRequest.isPending}
                             onClick={() => sendFriendRequest.mutate(memberProfile.username!)}
                           >
@@ -200,7 +198,7 @@ export function TeamMembersCard({ teamId, teamInviteCode }: TeamMembersCardProps
               })
             )}
           </div>
-        </ScrollArea>
+        </div>
       </CardContent>
     </Card>
   )
@@ -264,11 +262,11 @@ function InviteMembersPopover({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button type="button" variant="ghost" size="icon" className="h-8 w-8">
+        <Button type="button" variant="ghost" size="icon" className="dashboard-team-invite-button h-8 w-8">
           <UserPlus className="h-4 w-4" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-[min(28rem,calc(100vw-2rem))] p-0">
+      <PopoverContent align="end" className="dashboard-invite-popover w-[min(28rem,calc(100vw-2rem))] p-0">
         <div className="border-b border-border px-4 py-3">
           <h3 className="text-sm font-semibold">Add Members</h3>
           <p className="text-xs text-muted-foreground">
@@ -284,6 +282,7 @@ function InviteMembersPopover({
             autoCapitalize="none"
             autoCorrect="off"
             spellCheck={false}
+            className="dashboard-invite-search-input"
           />
 
           <div className="space-y-2">
@@ -293,12 +292,12 @@ function InviteMembersPopover({
             <Textarea
               value={message}
               onChange={(event) => setMessage(event.target.value)}
-              className="min-h-20"
+              className="dashboard-invite-message-textarea min-h-20"
               maxLength={240}
             />
           </div>
 
-          <ScrollArea className="h-72">
+          <div className="dashboard-invite-results-scroll max-h-72 overflow-y-auto pr-3 touch-pan-y scroll-smooth">
             <div className="space-y-1 pr-2">
               {publicLookupQuery.isFetching ? (
                 Array.from({ length: 4 }).map((_, index) => (
@@ -328,7 +327,7 @@ function InviteMembersPopover({
                   return (
                     <div
                       key={candidate.id}
-                      className="flex items-center gap-3 rounded-xl px-2 py-2 transition-colors hover:bg-accent/50"
+                      className="dashboard-invite-candidate-item flex items-center gap-3 rounded-xl px-2 py-2 transition-colors hover:bg-accent/50"
                     >
                       <Avatar className="h-9 w-9 border border-border/50">
                         <AvatarImage src={candidate.avatar_url ?? undefined} />
@@ -373,7 +372,7 @@ function InviteMembersPopover({
                 })
               )}
             </div>
-          </ScrollArea>
+          </div>
 
           <div className="rounded-xl border border-border/60 bg-card/40 px-3 py-2 text-xs text-muted-foreground">
             Priority 1: friends by full name or username. Priority 2: public users by username.

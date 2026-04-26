@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '@/hooks/use-auth'
 import { useTeams } from '@/hooks/use-teams'
 import { useGlobalChatListener } from '@/hooks/use-friend-chat'
+import { useGlobalPresence } from '@/hooks/use-global-presence'
 import { useResponsiveLayout } from '@/hooks/use-responsive-layout'
 import { useTheme } from '@/hooks/use-theme'
 import { useViewportHeight } from '@/hooks/use-viewport-height'
@@ -38,6 +39,8 @@ export function App() {
   useTeams()
   // Global chat listener for realtime unread dots and message status
   useGlobalChatListener()
+  // Global presence listener for online status
+  useGlobalPresence()
   const { currentTeam, teams, setCurrentTeam } = useTeamStore()
   const { isDesktop, isMobile } = useResponsiveLayout()
   const { setCompactNavExpanded, mobileBottomNavVisible } = useAppShellStore()
@@ -89,14 +92,14 @@ export function App() {
   }
 
   return (
-    <div className="h-[var(--app-height)] flex overflow-hidden overscroll-none bg-background">
+    <div className="h-[var(--app-height)] flex overflow-hidden bg-background">
       <Sidebar
         activeNav={activeNav}
         onNavChange={handleNavChange}
         isMobileKeyboardOpen={isMobileKeyboardOpen}
       />
       <main
-        className={`flex-1 min-h-0 flex flex-col overflow-y-auto overscroll-none ${
+        className={`flex-1 min-h-0 flex flex-col overflow-y-auto ${
           isMobile && mobileBottomNavVisible && !isMobileKeyboardOpen ? 'mb-20' : ''
         }`}
       >

@@ -1,4 +1,4 @@
-import { Mail, MessageCircle, UserRound } from 'lucide-react'
+import { Mail, MessageCircle, UserRound, Ban } from 'lucide-react'
 import { useState } from 'react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
@@ -18,11 +18,13 @@ interface ChatContactPopoverProps {
     allow_anon_chat?: boolean
   } | null
   onOpenChat?: (contactId: string) => void
+  onBlock?: (contactId: string) => void
+  customTrigger?: React.ReactNode
   size?: 'sm' | 'md'
   isLoading?: boolean
 }
 
-export function ChatContactPopover({ contact, onOpenChat, size = 'md', isLoading }: ChatContactPopoverProps) {
+export function ChatContactPopover({ contact, onOpenChat, onBlock, customTrigger, size = 'md', isLoading }: ChatContactPopoverProps) {
   const { isMobile } = useResponsiveLayout()
   const [open, setOpen] = useState(false)
   const avatarSizeClass = size === 'sm' ? 'w-8 h-8' : 'w-10 h-10'
@@ -63,27 +65,56 @@ export function ChatContactPopover({ contact, onOpenChat, size = 'md', isLoading
         </div>
       </div>
 
-      {onOpenChat ? (
-        <Button
-          className="w-full"
-          onClick={(event) => {
-            event.stopPropagation()
-            onOpenChat(contact.id)
-            setOpen(false)
-          }}
-        >
-          <MessageCircle className="h-4 w-4" />
-          Open Chat
-        </Button>
-      ) : null}
+      <div className="flex flex-col gap-2">
+        {onOpenChat && (
+          <Button
+            className="w-full"
+            onClick={(event) => {
+              event.stopPropagation()
+              onOpenChat(contact.id)
+              setOpen(false)
+            }}
+          >
+            <MessageCircle className="h-4 w-4 mr-2" />
+            Open Chat
+          </Button>
+        )}
+        {onBlock && (
+          <Button
+            variant="destructive"
+            className="w-full"
+            onClick={(event) => {
+              event.stopPropagation()
+              onBlock(contact.id)
+              setOpen(false)
+            }}
+          >
+            <Ban className="h-4 w-4 mr-2" />
+            Block {contact.full_name || contact.username}
+          </Button>
+        )}
+      </div>
     </div>
   )
 
-  const trigger = (
+  const trigger = customTrigger ? (
+    <div 
+      role="button" 
+      tabIndex={0} 
+      className="cursor-pointer" 
+      onClick={(e) => { e.stopPropagation(); setOpen(true) }}
+      onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); setOpen(true) } }}
+    >
+      {customTrigger}
+    </div>
+  ) : (
     <button
       type="button"
       className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      onClick={(event) => event.stopPropagation()}
+      onClick={(event) => {
+        event.stopPropagation()
+        setOpen(true)
+      }}
     >
       <Avatar className={`${avatarSizeClass} border border-border/50`}>
         <AvatarImage src={contact.avatar_url ?? undefined} />
@@ -95,19 +126,7 @@ export function ChatContactPopover({ contact, onOpenChat, size = 'md', isLoading
   if (isMobile) {
     return (
       <Dialog open={open} onOpenChange={setOpen}>
-        <button
-          type="button"
-          className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          onClick={(event) => {
-            event.stopPropagation()
-            setOpen(true)
-          }}
-        >
-          <Avatar className={`${avatarSizeClass} border border-border/50`}>
-            <AvatarImage src={contact.avatar_url ?? undefined} />
-            <AvatarFallback>{getInitials(contact.full_name ?? contact.username ?? 'U')}</AvatarFallback>
-          </Avatar>
-        </button>
+        {trigger}
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>Contact</DialogTitle>
@@ -120,7 +139,7 @@ export function ChatContactPopover({ contact, onOpenChat, size = 'md', isLoading
   }
 
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         {trigger}
       </PopoverTrigger>

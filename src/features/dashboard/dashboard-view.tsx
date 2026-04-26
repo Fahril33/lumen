@@ -5,7 +5,7 @@ import { useTeams } from '@/hooks/use-teams'
 import { supabase } from '@/lib/supabase'
 import { useTeamStore } from '@/stores/team-store'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { ScrollArea } from '@/components/ui/scroll-area'
+
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatRelativeTime } from '@/lib/utils'
 import type { ActivityWithProfile } from '@/types/database'
@@ -32,6 +32,8 @@ const activityIcons: Record<string, React.ReactNode> = {
   channel_created: <Hash className="w-4 h-4 text-chart-1" />,
   file_uploaded: <Upload className="w-4 h-4 text-chart-3" />,
 }
+
+
 
 export function DashboardView() {
   const { currentTeam } = useTeamStore()
@@ -96,7 +98,7 @@ export function DashboardView() {
 
   if (!currentTeam) {
     return (
-      <div className="flex-1 flex items-center justify-center">
+      <div className="dashboard-empty-state flex-1 flex items-center justify-center">
         <div className="text-center space-y-4">
           <div className="w-20 h-20 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto">
             <Users className="w-10 h-10 text-primary" />
@@ -111,17 +113,18 @@ export function DashboardView() {
   }
 
   const statCards = [
-    { label: 'Members', value: stats?.members ?? members?.length ?? 0, icon: <Users className="w-5 h-5" />, color: 'text-chart-1' },
-    { label: 'Channels', value: stats?.channels ?? 0, icon: <Hash className="w-5 h-5" />, color: 'text-chart-2' },
-    { label: 'Notes', value: stats?.notes ?? 0, icon: <FileText className="w-5 h-5" />, color: 'text-chart-3' },
-    { label: 'Activity', value: activities?.length ?? 0, icon: <TrendingUp className="w-5 h-5" />, color: 'text-chart-4' },
+    { id: 'members', label: 'Members', value: stats?.members ?? members?.length ?? 0, icon: <Users className="w-5 h-5" />, color: 'text-chart-1' },
+    { id: 'channels', label: 'Channels', value: stats?.channels ?? 0, icon: <Hash className="w-5 h-5" />, color: 'text-chart-2' },
+    { id: 'notes', label: 'Notes', value: stats?.notes ?? 0, icon: <FileText className="w-5 h-5" />, color: 'text-chart-3' },
+    { id: 'activity', label: 'Activity', value: activities?.length ?? 0, icon: <TrendingUp className="w-5 h-5" />, color: 'text-chart-4' },
   ]
 
   return (
-    <div className="flex-1 overflow-auto overscroll-contain p-6">
-      <div className="max-w-6xl mx-auto space-y-6">
+    <div className="dashboard-main-container flex-1 p-6 touch-pan-y">
+      <div className="dashboard-content-wrapper max-w-6xl mx-auto space-y-6">
+        
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="dashboard-header flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold flex items-center gap-2">
               <BarChart3 className="w-6 h-6 text-primary" />
@@ -134,10 +137,10 @@ export function DashboardView() {
         </div>
 
         {/* Stat cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="dashboard-stats-grid grid grid-cols-2 md:grid-cols-4 gap-4">
           {isDashboardLoading
             ? Array.from({ length: 4 }).map((_, index) => (
-                <Card key={index} className="bg-card/50 backdrop-blur border-border/50">
+                <Card key={index} className="dashboard-stats-card bg-card/50 backdrop-blur border-border/50">
                   <CardContent className="p-4 space-y-3">
                     <div className="flex items-center justify-between">
                       <Skeleton className="h-5 w-5" />
@@ -148,7 +151,7 @@ export function DashboardView() {
                 </Card>
               ))
             : statCards.map((stat) => (
-                <Card key={stat.label} className="bg-card/50 backdrop-blur border-border/50 hover:border-primary/30 transition-colors">
+                <Card key={stat.id} className={`dashboard-stats-card dashboard-stats-${stat.id} bg-card/50 backdrop-blur border-border/50 hover:border-primary/30 transition-colors`}>
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between mb-2">
                       <span className={stat.color}>{stat.icon}</span>
@@ -160,17 +163,19 @@ export function DashboardView() {
               ))}
         </div>
 
-        <div className="grid md:grid-cols-3 gap-6">
+        <div className="dashboard-widgets-grid grid md:grid-cols-3 gap-6">
+          
           {/* Recent Activity */}
-          <Card className="md:col-span-2 bg-card/50 backdrop-blur border-border/50">
-            <CardHeader className="pb-3">
+          <Card className="dashboard-activity-card md:col-span-2 bg-card/50 backdrop-blur border-border/50 flex flex-col">
+            <CardHeader className="pb-3 shrink-0">
               <CardTitle className="text-base flex items-center gap-2">
                 <Activity className="w-4 h-4 text-primary" />
                 Recent Activity
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <ScrollArea className="h-[400px]">
+            <CardContent className="flex-1 min-h-0 p-0">
+              {/* Added touch-pan-y to ensure the browser prioritizes vertical scrolling over default touch behaviors */}
+              <div className="dashboard-activity-scroll-area max-h-[400px] overflow-y-auto px-6 pb-6 pt-0 touch-pan-y scroll-smooth">
                 {isDashboardLoading ? (
                   <div className="space-y-3">
                     {Array.from({ length: 6 }).map((_, index) => (
@@ -186,10 +191,10 @@ export function DashboardView() {
                 ) : !activities?.length ? (
                   <p className="text-sm text-muted-foreground text-center py-8">No activity yet</p>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="space-y-1">
                     {activities.map((act) => (
-                      <div key={act.id} className="flex items-start gap-3 p-2 rounded-lg hover:bg-accent/50 transition-colors">
-                        <div className="mt-0.5">{activityIcons[act.type]}</div>
+                      <div key={act.id} className="dashboard-activity-item flex items-start gap-3 p-2 rounded-lg hover:bg-accent/50 transition-colors">
+                        <div className="mt-0.5 shrink-0">{activityIcons[act.type]}</div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm">
                             <span className="font-medium">{act.profiles?.full_name}</span>{' '}
@@ -205,10 +210,11 @@ export function DashboardView() {
                     ))}
                   </div>
                 )}
-              </ScrollArea>
+              </div>
             </CardContent>
           </Card>
 
+          {/* Team Members Card Component */}
           <TeamMembersCard teamId={currentTeam.id} teamInviteCode={currentTeam.invite_code} />
         </div>
       </div>
@@ -218,16 +224,16 @@ export function DashboardView() {
 
 function DashboardSkeleton() {
   return (
-    <div className="flex-1 overflow-auto overscroll-contain p-6">
-      <div className="mx-auto max-w-6xl space-y-6">
-        <div className="space-y-3">
+    <div className="dashboard-main-container flex-1 p-6">
+      <div className="dashboard-content-wrapper mx-auto max-w-6xl space-y-6">
+        <div className="dashboard-header-skeleton space-y-3">
           <Skeleton className="h-8 w-40" />
           <Skeleton className="h-4 w-72" />
         </div>
 
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+        <div className="dashboard-stats-grid grid grid-cols-2 gap-4 md:grid-cols-4">
           {Array.from({ length: 4 }).map((_, index) => (
-            <Card key={index} className="border-border/50 bg-card/50 backdrop-blur">
+            <Card key={index} className="dashboard-stats-card border-border/50 bg-card/50 backdrop-blur">
               <CardContent className="space-y-3 p-4">
                 <div className="flex items-center justify-between">
                   <Skeleton className="h-5 w-5" />
@@ -239,8 +245,8 @@ function DashboardSkeleton() {
           ))}
         </div>
 
-        <div className="grid gap-6 md:grid-cols-3">
-          <Card className="border-border/50 bg-card/50 backdrop-blur md:col-span-2">
+        <div className="dashboard-widgets-grid grid gap-6 md:grid-cols-3">
+          <Card className="dashboard-activity-card border-border/50 bg-card/50 backdrop-blur md:col-span-2">
             <CardHeader className="pb-3">
               <Skeleton className="h-5 w-36" />
             </CardHeader>
@@ -257,7 +263,7 @@ function DashboardSkeleton() {
             </CardContent>
           </Card>
 
-          <Card className="border-border/50 bg-card/50 backdrop-blur">
+          <Card className="dashboard-team-card border-border/50 bg-card/50 backdrop-blur">
             <CardHeader className="pb-3">
               <Skeleton className="h-5 w-28" />
             </CardHeader>

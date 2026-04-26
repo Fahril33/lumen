@@ -1,12 +1,15 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useEffect, useState, useRef, useMemo, type FormEvent } from 'react'
+import { useEffect, useState, useRef, useMemo, useCallback, type FormEvent } from 'react'
 import { useAuthStore } from '@/stores/auth-store'
 import { useChatRequests } from '@/hooks/use-chat-requests'
-import { useFriendships, useChats, useChatMessages } from '@/hooks/use-friend-chat'
+import { useFriendships, useChats, useChatMessages, useStarredMessages } from '@/hooks/use-friend-chat'
 import { useIncomingTeamInvitations, useRespondToTeamInvitation } from '@/hooks/use-team-invitations'
 import { useChatScroll } from '@/hooks/use-chat-scroll'
 import { useResponsiveLayout } from '@/hooks/use-responsive-layout'
 import { useAppShellStore } from '@/stores/app-shell-store'
+import { useTypingIndicator } from '@/hooks/use-typing-indicator'
+import { useChatDrafts } from '@/hooks/use-chat-drafts'
+import { usePresenceStore } from '@/stores/presence-store'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -17,7 +20,13 @@ import { getInitials } from '@/lib/utils'
 import { InvitationInboxPanel } from '@/features/chat/invitation-inbox-panel'
 import { NewChatDialog } from '@/features/chat/new-chat-dialog'
 import { ChatContactPopover } from '@/features/chat/chat-contact-popover'
-import { format } from 'date-fns'
+import { ChatListItem } from '@/features/chat/chat-list-item'
+import { MessageBubble } from '@/features/chat/message-bubble'
+import { FilePreviewDialog } from '@/features/chat/file-preview-dialog'
+import { TypingIndicator } from '@/features/chat/typing-indicator'
+import { ReplyPreviewBar } from '@/features/chat/reply-preview-bar'
+import { EmojiPicker } from '@/features/chat/emoji-picker'
+import { toast } from 'sonner'
 import {
   MessageCircle,
   Users,
@@ -25,8 +34,6 @@ import {
   Send,
   Paperclip,
   Loader2,
-  ImageIcon,
-  FileIcon,
   SmilePlus,
   MessageSquare,
   UserPlus,
@@ -39,7 +46,6 @@ import {
 } from 'lucide-react'
 import type { ChatMessageWithProfile } from '@/types/database'
 
-const EMOJI_LIST = ['👍', '❤️', '😂', '🎉', '🔥', '✅', '👀', '💯', '🚀', '💪', '🙏', '👏']
 
 export function ChatView() {
   const user = useAuthStore((s) => s.user)
@@ -61,10 +67,14 @@ export function ChatView() {
   const [isUploading, setIsUploading] = useState(false)
   const [searchUsername, setSearchUsername] = useState('')
   const [showNewChat, setShowNewChat] = useState(false)
+  const [replyingTo, setReplyingTo] = useState<ChatMessageWithProfile | null>(null)
+  const [previewFile, setPreviewFile] = useState<File | null>(null)
 
   const chatScrollAreaRef = useRef<HTMLDivElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const emojiPickerRef = useRef<HTMLDivElement>(null)
 
   const chats = useMemo(() => chatsQuery.data ?? [], [chatsQuery.data])
   const friendships = useMemo(() => friendshipsQuery.data ?? [], [friendshipsQuery.data])
@@ -81,10 +91,6 @@ export function ChatView() {
   const acceptedFriends = friendships.filter((f: any) => f.status === 'accepted')
   const inboxCount = incomingChatRequests.length + incomingTeamInvitations.length
 
-  function insertEmoji(emoji: string) {
-    setMessageText((prev) => prev + emoji)
-    setShowEmoji(false)
-  }
 
   const activeChatId = activeConversation?.type === 'chat' ? activeConversation.id : null
   const isInboxActive = activeConversation?.type === 'inbox'
@@ -93,18 +99,32 @@ export function ChatView() {
     messagesQuery,
     messages,
     sendMessage,
+    editMessage,
+    deleteMessage,
+    toggleStar,
     uploadFile,
     markAsRead,
     fetchOlderMessages,
     hasOlderMessages,
     isFetchingOlderMessages,
   } = useChatMessages(activeChatId ?? undefined)
+  const starredQuery = useStarredMessages(activeChatId ?? undefined)
+  const starredIds = useMemo(() => starredQuery.data ?? new Set<string>(), [starredQuery.data])
+  const { typingUsers, setTyping } = useTypingIndicator(activeChatId ?? undefined)
+  const otherUser = useMemo(() => {
+    if (!activeChat || activeChat.is_group) return null
+    return activeChat.participants?.find((p: any) => p.profiles.id !== user?.id)?.profiles
+  }, [activeChat, user?.id])
+  const isOnline = usePresenceStore((s) => otherUser ? s.onlineUsers.has(otherUser.id) : false)
+  const isTyping = typingUsers.length > 0
+  
   const isMessagesLoading = messagesQuery.isLoading || (messagesQuery.isFetching && messages.length === 0)
   const hasUnreadIncomingMessages = useMemo(
     () => messages.some((message) => message.user_id !== user?.id && message.status !== 'read'),
     [messages, user?.id]
   )
 
+  const { draft: savedDraft, updateDraft, clearDraft } = useChatDrafts(activeChatId ?? undefined)
   const { isAtBottom, distanceFromBottom, scrollToBottom } = useChatScroll(
     chatScrollAreaRef,
     messagesEndRef,
@@ -112,6 +132,13 @@ export function ChatView() {
     messages.length,
     isMessagesLoading
   )
+
+  // Load draft when switching chats
+  useEffect(() => {
+    if (activeChatId) {
+      setMessageText(savedDraft)
+    }
+  }, [activeChatId, savedDraft])
 
   useEffect(() => {
     if (!activeChatId) return
@@ -141,6 +168,21 @@ export function ChatView() {
     scrollToBottom('smooth')
   }, [activeChatId, messages.length, scrollToBottom, sendMessage.isSuccess])
 
+  // Click outside emoji picker
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (emojiPickerRef.current && !emojiPickerRef.current.contains(event.target as Node)) {
+        setShowEmoji(false)
+      }
+    }
+    if (showEmoji) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [showEmoji])
+
   function getChatName(chat: any) {
     if (chat.is_group) return chat.name || 'Group Chat'
     // For DM, find the other participant
@@ -154,10 +196,6 @@ export function ChatView() {
     return other?.avatar_url
   }
 
-  function getChatContact(chat: any) {
-    if (chat.is_group) return null
-    return chat.participants?.find((p: any) => p.profiles.id !== user?.id)?.profiles ?? null
-  }
 
   function findExistingDirectChat(friendId: string) {
     return chats.find((chat: any) =>
@@ -167,40 +205,104 @@ export function ChatView() {
     )
   }
 
+  // Typing indicator: notify on input change
+  const handleMessageChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value
+    setMessageText(val)
+    updateDraft(val)
+    if (val.trim()) setTyping(true)
+    else setTyping(false)
+  }, [updateDraft, setTyping])
+
+  function insertEmoji(emoji: string) {
+    const newVal = messageText + emoji
+    setMessageText(newVal)
+    updateDraft(newVal)
+  }
+
   async function handleSend(e: FormEvent) {
     e.preventDefault()
     if (!messageText.trim()) return
     const nextMessage = messageText.trim()
+    const replyId = replyingTo?.id
     setMessageText('')
+    clearDraft() // Clear the persistent draft
     setShowEmoji(false)
+    setReplyingTo(null)
+    setTyping(false)
     scrollToBottom('smooth')
     sendMessage.mutate(
-      { content: nextMessage },
-      {
-        onSuccess: () => {
-          scrollToBottom('smooth')
-        },
-      }
+      { content: nextMessage, replyToId: replyId },
+      { onSuccess: () => scrollToBottom('smooth') }
     )
   }
 
-  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+  // File preview flow: select file -> show preview -> send from preview
+  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    setIsUploading(true)
+    setPreviewFile(file)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  async function handleFileSend(file: File, caption: string) {
     try {
+      setIsUploading(true)
+      setPreviewFile(null)
       const { url, name, type } = await uploadFile(file)
+      
+      const replyId = replyingTo?.id
+      setReplyingTo(null)
+      clearDraft() // Also clear draft when sending file if it was used for caption or similar
+      
       sendMessage.mutate({
-        content: `📎 ${name}`,
+        content: caption || `📎 ${name}`,
         fileUrl: url,
         fileName: name,
         fileType: type,
+        replyToId: replyId
       })
     } catch {
-      // toast handles error
+      toast.error('Failed to upload file')
+    } finally {
+      setIsUploading(false)
     }
-    setIsUploading(false)
-    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  // Message action handlers
+  function handleReply(msg: ChatMessageWithProfile) {
+    setReplyingTo(msg)
+    // Small delay to ensure focus works after state updates
+    setTimeout(() => {
+      inputRef.current?.focus()
+    }, 50)
+  }
+  function handleEdit(messageId: string, content: string) {
+    editMessage.mutate({ messageId, content })
+  }
+  function handleDelete(messageId: string) { deleteMessage.mutate(messageId) }
+  function handleToggleStar(messageId: string, currentlyStarred: boolean) {
+    toggleStar.mutate({ messageId, starred: currentlyStarred })
+  }
+  function handleBlockContact(contactId: string) {
+    updateFriendship.mutate({ id: contactId, status: 'blocked' })
+    toast.success('User blocked')
+  }
+  function handleDeleteChat() {
+    // For now just remove from view; full delete requires backend support
+    setActiveConversation(null)
+    toast.success('Chat removed from view')
+  }
+  function scrollToMessage(messageId: string) {
+    // Find the viewport inside Radix ScrollArea
+    const viewport = chatScrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]')
+    const el = viewport?.querySelector(`[data-message-id="${messageId}"]`)
+    
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      el.classList.add('highlight-message')
+      setTimeout(() => el.classList.remove('highlight-message'), 2000)
+    }
   }
 
   async function handleStartChat(friendId: string) {
@@ -334,61 +436,18 @@ export function ChatView() {
               ) : chats.length === 0 ? (
                 <div className="p-4 text-center text-muted-foreground text-sm">No chats yet.</div>
               ) : (
-                chats.map((chat: any) => {
-                  const lastMsg = chat.messages?.[0]
-                  const isUnread = lastMsg && lastMsg.user_id !== user?.id && lastMsg.status !== 'read'
-                  
-                  return (
-                    <div
-                      key={chat.id}
-                      className={`w-full flex items-center gap-3 p-2 rounded-xl transition-all ${
-                        activeChatId === chat.id ? 'bg-primary/10' : 'hover:bg-accent'
-                      }`}
-                    >
-                      <ChatContactPopover
-                        contact={getChatContact(chat)}
-                        onOpenChat={() => setActiveConversation({ type: 'chat', id: chat.id })}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setActiveConversation({ type: 'chat', id: chat.id })}
-                        className="flex-1 min-w-0 text-left"
-                      >
-                        <div className="flex justify-between items-baseline mb-0.5">
-                          <span className={`text-sm truncate ${isUnread ? 'font-bold' : 'font-semibold'}`}>{getChatName(chat)}</span>
-                          {lastMsg && (
-                            <span className={`text-[10px] shrink-0 ml-2 ${isUnread ? 'text-primary font-bold' : 'text-muted-foreground'}`}>
-                              {format(new Date(lastMsg.created_at), 'HH:mm')}
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex justify-between items-center gap-2">
-                          <div className="flex items-center gap-1 min-w-0 flex-1">
-                            {lastMsg && lastMsg.user_id === user?.id && (
-                              <span className={lastMsg.status === 'read' ? 'text-blue-500' : 'text-muted-foreground'}>
-                                {lastMsg.status === 'read' ? (
-                                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/></svg>
-                                ) : lastMsg.status === 'received' ? (
-                                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.801 10A10 10 0 1 1 17 3.335"/><path d="m9 11 3 3L22 4"/></svg>
-                                ) : (
-                                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
-                                )}
-                              </span>
-                            )}
-                            <p className={`text-xs truncate ${isUnread ? 'font-medium text-foreground' : 'text-muted-foreground'}`}>
-                              {lastMsg?.content || 'Say hi!'}
-                            </p>
-                          </div>
-                          {isUnread && chat.unread_count > 0 && (
-                            <div className="bg-green-500 text-white text-[10px] font-bold px-1.5 py-0.5 min-w-[18px] h-[18px] flex items-center justify-center rounded-full">
-                              {chat.unread_count}
-                            </div>
-                          )}
-                        </div>
-                      </button>
-                    </div>
-                  )
-                })
+                chats.map((chat: any) => (
+                  <ChatListItem
+                    key={chat.id}
+                    chat={chat}
+                    isActive={activeChatId === chat.id}
+                    currentUserId={user?.id}
+                    onSelect={() => setActiveConversation({ type: 'chat', id: chat.id })}
+                    onDeleteChat={handleDeleteChat}
+                    getChatName={getChatName}
+                    getChatAvatar={getChatAvatar}
+                  />
+                ))
               )}
             </div>
           ) : (
@@ -547,16 +606,36 @@ export function ChatView() {
                   <ChevronLeft className="w-5 h-5" />
                 </Button>
               ) : null}
-              <Avatar className="w-10 h-10 border border-border/50">
-                <AvatarImage src={getChatAvatar(activeChat) ?? undefined} />
-                <AvatarFallback>{getInitials(getChatName(activeChat))}</AvatarFallback>
-              </Avatar>
-              <div className="min-w-0">
-                <h2 className="font-semibold text-base leading-tight truncate">{getChatName(activeChat)}</h2>
-                <p className="text-xs text-muted-foreground">
-                  {activeChat.is_group ? `${activeChat.participants?.length} participants` : 'Friend'}
-                </p>
-              </div>
+              
+              <ChatContactPopover
+                contact={otherUser}
+                onBlock={handleBlockContact}
+                customTrigger={
+                  <div className="flex items-center gap-3 md:gap-4 hover:bg-accent/50 p-1.5 -ml-1.5 rounded-xl transition-colors min-w-0">
+                    <div className="relative shrink-0">
+                      <Avatar className="w-10 h-10 border border-border/50">
+                        <AvatarImage src={getChatAvatar(activeChat) ?? undefined} />
+                        <AvatarFallback>{getInitials(getChatName(activeChat))}</AvatarFallback>
+                      </Avatar>
+                      {isOnline && (
+                        <span className="absolute bottom-0.5 right-0.5 block w-2.5 h-2.5 bg-green-500 border-2 border-background rounded-full" />
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <h2 className="font-semibold text-base leading-tight truncate">{getChatName(activeChat)}</h2>
+                      <p className={`text-xs truncate ${isTyping ? 'text-green-500 font-medium' : 'text-muted-foreground'}`}>
+                        {isTyping ? (
+                          <span className="animate-pulse">typing...</span>
+                        ) : isOnline ? (
+                          <span className="text-primary font-medium">Online</span>
+                        ) : (
+                          activeChat.is_group ? `${activeChat.participants?.length} participants` : 'Friend'
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                }
+              />
             </div>
 
             <ScrollArea
@@ -610,15 +689,36 @@ export function ChatView() {
                   const prevMsg = messages[i - 1]
                   const showHeader = !prevMsg || prevMsg.user_id !== msg.user_id ||
                     new Date(msg.created_at).getTime() - new Date(prevMsg.created_at).getTime() > 300000
+
+                  // Fix inverted reply logic by populating reply_to locally from the messages list
+                  // This avoids the ambiguity in the backend query that might return children instead of parents
+                  let enrichedMsg = msg
+                  if (msg.reply_to_id) {
+                    const parentMsg = messages.find(m => m.id === msg.reply_to_id)
+                    if (parentMsg) {
+                      enrichedMsg = { ...msg, reply_to: parentMsg }
+                    }
+                  } else {
+                    // If no reply_to_id, ensure reply_to is null to hide any reverse relation data
+                    enrichedMsg = { ...msg, reply_to: null }
+                  }
+
                   return (
                     <MessageBubble
                       key={msg.id}
-                      message={msg as any}
+                      message={enrichedMsg as any}
                       showHeader={showHeader}
                       isOwn={msg.user_id === user?.id}
+                      isStarred={starredIds.has(msg.id)}
+                      onReply={handleReply}
+                      onEdit={handleEdit}
+                      onDelete={handleDelete}
+                      onToggleStar={handleToggleStar}
+                      onScrollToMessage={scrollToMessage}
                     />
                   )
                 })}
+                <TypingIndicator typingUsers={typingUsers} />
                 <div ref={messagesEndRef} className="h-4" />
               </div>
 
@@ -636,13 +736,22 @@ export function ChatView() {
               )}
             </ScrollArea>
 
+            {/* Reply preview bar */}
+            {replyingTo && (
+              <ReplyPreviewBar
+                message={replyingTo}
+                isOwnMessage={replyingTo.user_id === user?.id}
+                onCancel={() => setReplyingTo(null)}
+              />
+            )}
+
             <div className="sticky bottom-0 border-t border-border bg-card/88 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] backdrop-blur shrink-0 z-30">
               <form onSubmit={handleSend} className="max-w-4xl mx-auto flex items-end gap-2 bg-background border border-border rounded-2xl p-1.5 shadow-sm focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20 transition-all">
                 <input
                   ref={fileInputRef}
                   type="file"
                   className="hidden"
-                  onChange={handleFileUpload}
+                  onChange={handleFileSelect}
                   accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
                 />
                 <Button
@@ -656,35 +765,30 @@ export function ChatView() {
                   {isUploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Paperclip className="w-5 h-5 text-muted-foreground" />}
                 </Button>
 
-                <div className="relative">
+                <div className="relative" ref={emojiPickerRef}>
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="shrink-0 rounded-xl hover:bg-muted"
+                    className={`shrink-0 rounded-xl transition-colors ${showEmoji ? 'bg-primary/10 text-primary' : 'hover:bg-muted text-muted-foreground'}`}
                     onClick={() => setShowEmoji(!showEmoji)}
                   >
-                    <SmilePlus className="w-5 h-5 text-muted-foreground" />
+                    <SmilePlus className="w-5 h-5" />
                   </Button>
                   {showEmoji && (
-                    <div className="absolute bottom-14 left-0 bg-popover border border-border rounded-xl p-3 shadow-2xl grid grid-cols-6 gap-2 z-50 animate-in fade-in zoom-in-95">
-                      {EMOJI_LIST.map((e) => (
-                        <button
-                          key={e}
-                          type="button"
-                          onClick={() => insertEmoji(e)}
-                          className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-accent text-xl cursor-pointer hover:scale-110 transition-transform"
-                        >
-                          {e}
-                        </button>
-                      ))}
+                    <div className="absolute bottom-14 left-0 z-50">
+                      <EmojiPicker 
+                        onSelect={insertEmoji} 
+                        onClose={() => setShowEmoji(false)} 
+                      />
                     </div>
                   )}
                 </div>
 
                 <Input
+                  ref={inputRef}
                   value={messageText}
-                  onChange={(e) => setMessageText(e.target.value)}
+                  onChange={handleMessageChange}
                   placeholder="Type a message..."
                   className="flex-1 border-none shadow-none focus-visible:ring-0 bg-transparent px-2 text-[15px] h-11"
                   onFocus={() => setShowEmoji(false)}
@@ -712,107 +816,19 @@ export function ChatView() {
         onStartChat={handleStartChat}
         isLoading={isFriendListLoading}
       />
+
+      {/* File preview dialog */}
+      <FilePreviewDialog
+        file={previewFile}
+        open={!!previewFile}
+        onClose={() => setPreviewFile(null)}
+        onSend={handleFileSend}
+        isSending={isUploading}
+      />
     </div>
   )
 }
 
-function MessageBubble({
-  message,
-  showHeader,
-  isOwn,
-}: {
-  message: ChatMessageWithProfile
-  showHeader: boolean
-  isOwn: boolean
-}) {
-  const isImage = message.file_type?.startsWith('image/')
-  const status = message.status || 'sent'
-  const isRequestIntro = message.message_kind === 'request_intro'
+// MessageBubble is now in @/features/chat/message-bubble.tsx
 
-  return (
-    <div className={`flex w-full ${isOwn ? 'justify-end' : 'justify-start'} ${showHeader ? 'mt-4' : 'mt-1'}`}>
-      <div className={`flex max-w-[75%] md:max-w-[65%] gap-2 ${isOwn ? 'flex-row-reverse' : 'flex-row'}`}>
-        {/* Avatar */}
-        {!isOwn && (
-          <div className="shrink-0 w-8 flex flex-col items-center">
-            {showHeader && (
-               <Avatar className="w-8 h-8 shadow-sm">
-                 <AvatarImage src={message.profiles?.avatar_url ?? undefined} />
-                 <AvatarFallback className="text-[10px]">{getInitials(message.profiles?.full_name ?? 'U')}</AvatarFallback>
-               </Avatar>
-            )}
-          </div>
-        )}
 
-        <div className={`flex flex-col ${isOwn ? 'items-end' : 'items-start'}`}>
-          {/* Header */}
-          {!isOwn && showHeader && (
-             <span className="text-xs font-medium text-muted-foreground ml-1 mb-1">
-               {message.profiles?.full_name}
-             </span>
-          )}
-
-          {/* Bubble core */}
-          <div className={`relative px-4 py-2.5 rounded-2xl shadow-sm overflow-hidden text-[15px] leading-relaxed ${
-            isRequestIntro
-              ? 'bg-muted border border-border/60 text-foreground'
-              : isOwn 
-                ? 'bg-primary text-primary-foreground rounded-tr-sm' 
-                : 'bg-card border border-border/50 rounded-tl-sm text-card-foreground'
-          }`}>
-            {isRequestIntro && (
-              <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                Request Message
-              </div>
-            )}
-            {message.file_url && isImage ? (
-              <div className="my-1 cursor-pointer">
-                <img
-                  src={message.file_url}
-                  alt={message.file_name ?? 'image'}
-                  className="max-w-sm w-full rounded-lg object-cover"
-                />
-              </div>
-            ) : message.file_url ? (
-              <a
-                href={message.file_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl transition-colors my-1 ${
-                  isOwn && !isRequestIntro ? 'bg-primary-foreground/10 hover:bg-primary-foreground/20' : 'bg-background/70 hover:bg-accent'
-                }`}
-              >
-                {message.file_type?.startsWith('image/') ? (
-                  <ImageIcon className="w-4 h-4" />
-                ) : (
-                  <FileIcon className="w-4 h-4" />
-                )}
-                <span className="text-sm font-medium underline underline-offset-2">{message.file_name}</span>
-              </a>
-            ) : null}
-            {!message.file_url && <p className="wrap-break-word">{message.content}</p>}
-            {message.file_url && !message.content.startsWith('📎') && <p className="mt-2 wrap-break-word">{message.content}</p>}
-          </div>
-
-          {/* Timestamp and ticks */}
-          <div className={`flex items-center gap-1 mt-1 px-1 ${isOwn ? 'justify-end' : 'justify-start'}`}>
-            <span className="text-[10px] text-muted-foreground">
-              {format(new Date(message.created_at), 'HH:mm')}
-            </span>
-            {isOwn && (
-              <span className={status === 'read' ? 'text-blue-500' : 'text-muted-foreground'}>
-                {status === 'read' ? (
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/></svg>
-                ) : status === 'received' ? (
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.801 10A10 10 0 1 1 17 3.335"/><path d="m9 11 3 3L22 4"/></svg>
-                ) : (
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
-                )}
-              </span>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}

@@ -88,7 +88,7 @@ async function fetchChatById(chatId: string, userId: string) {
 async function fetchChatMessagesPage(chatId: string, cursor?: string | null) {
   /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
   let query = (supabase.from('chat_messages') as any)
-    .select('*, profiles(*)')
+    .select('*, profiles!user_id(*), reply_to:reply_to_id(*, profiles!user_id(*))')
     .eq('chat_id', chatId)
     .order('created_at', { ascending: false })
     .limit(CHAT_MESSAGES_PAGE_SIZE)
@@ -316,7 +316,7 @@ export function useChatMessages(chatId: string | undefined) {
         async (payload) => {
           /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
           const { data } = await (supabase.from('chat_messages') as any)
-            .select('*, profiles(*)')
+            .select('*, profiles!user_id(*), reply_to:reply_to_id(*, profiles!user_id(*))')
             .eq('id', payload.new.id)
             .maybeSingle()
 
@@ -407,16 +407,17 @@ export function useChatMessages(chatId: string | undefined) {
   }, [chatId, queryClient])
 
   const sendMessage = useMutation({
-    mutationFn: async ({ content, fileUrl, fileName, fileType }: { content: string, fileUrl?: string, fileName?: string, fileType?: string }) => {
+    mutationFn: async ({ content, replyToId, fileUrl, fileName, fileType }: { content: string, replyToId?: string, fileUrl?: string, fileName?: string, fileType?: string }) => {
       /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
       const { data, error } = await (supabase.from('chat_messages') as any).insert({
         chat_id: chatId!,
         user_id: user!.id,
         content,
+        reply_to_id: replyToId ?? null,
         file_url: fileUrl ?? null,
         file_name: fileName ?? null,
         file_type: fileType ?? null
-      }).select('*, profiles(*)').single()
+      }).select('*, profiles!user_id(*), reply_to:reply_to_id(*, profiles!user_id(*))').single()
 
       if (error) throw error
       return data as ChatMessageWithProfile
@@ -458,6 +459,56 @@ export function useChatMessages(chatId: string | undefined) {
         }
       )
     }
+  })
+
+  const editMessage = useMutation({
+    mutationFn: async ({ messageId, content }: { messageId: string; content: string }) => {
+      /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+      const { error } = await (supabase.from('chat_messages') as any)
+        .update({ content, is_edited: true })
+        .eq('id', messageId)
+        .eq('user_id', user!.id)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['chat_messages', chatId] })
+    },
+  })
+
+  const deleteMessage = useMutation({
+    mutationFn: async (messageId: string) => {
+      /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+      const { error } = await (supabase.from('chat_messages') as any)
+        .update({ is_deleted: true, content: '' })
+        .eq('id', messageId)
+        .eq('user_id', user!.id)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['chat_messages', chatId] })
+      queryClient.invalidateQueries({ queryKey: ['chats', user?.id] })
+    },
+  })
+
+  const toggleStar = useMutation({
+    mutationFn: async ({ messageId, starred }: { messageId: string; starred: boolean }) => {
+      if (starred) {
+        /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+        const { error } = await (supabase.from('starred_messages') as any)
+          .delete()
+          .eq('user_id', user!.id)
+          .eq('message_id', messageId)
+        if (error) throw error
+      } else {
+        /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+        const { error } = await (supabase.from('starred_messages') as any)
+          .insert({ user_id: user!.id, message_id: messageId })
+        if (error) throw error
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['starred_messages', chatId] })
+    },
   })
 
   const uploadFile = useCallback(
@@ -542,10 +593,33 @@ export function useChatMessages(chatId: string | undefined) {
     messagesQuery,
     messages,
     sendMessage,
+    editMessage,
+    deleteMessage,
+    toggleStar,
     uploadFile,
     markAsRead,
     fetchOlderMessages: messagesQuery.fetchNextPage,
     hasOlderMessages: messagesQuery.hasNextPage,
     isFetchingOlderMessages: messagesQuery.isFetchingNextPage,
   }
+}
+
+export function useStarredMessages(chatId: string | undefined) {
+  const user = useAuthStore((s) => s.user)
+
+  return useQuery({
+    queryKey: ['starred_messages', chatId],
+    queryFn: async () => {
+      if (!chatId || !user) return new Set<string>()
+
+      /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+      const { data, error } = await (supabase.from('starred_messages') as any)
+        .select('message_id')
+        .eq('user_id', user.id)
+
+      if (error) throw error
+      return new Set<string>((data as { message_id: string }[]).map((row) => row.message_id))
+    },
+    enabled: !!chatId && !!user,
+  })
 }

@@ -362,7 +362,9 @@ export interface Database {
           status: 'sent' | 'received' | 'read'
           message_kind: 'standard' | 'request_intro'
           related_request_id: string | null
+          reply_to_id: string | null
           is_edited: boolean
+          is_deleted: boolean
           created_at: string
           updated_at: string
         }
@@ -377,7 +379,9 @@ export interface Database {
           status?: 'sent' | 'received' | 'read'
           message_kind?: 'standard' | 'request_intro'
           related_request_id?: string | null
+          reply_to_id?: string | null
           is_edited?: boolean
+          is_deleted?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -386,7 +390,9 @@ export interface Database {
           status?: 'sent' | 'received' | 'read'
           message_kind?: 'standard' | 'request_intro'
           related_request_id?: string | null
+          reply_to_id?: string | null
           is_edited?: boolean
+          is_deleted?: boolean
           updated_at?: string
         }
       }
@@ -423,6 +429,21 @@ export interface Database {
           updated_at?: string
         }
       }
+      starred_messages: {
+        Row: {
+          user_id: string
+          message_id: string
+          created_at: string
+        }
+        Insert: {
+          user_id: string
+          message_id: string
+          created_at?: string
+        }
+        Update: {
+          created_at?: string
+        }
+      }
     }
   }
 }
@@ -442,9 +463,13 @@ export type ChatInfo = Database['public']['Tables']['chats']['Row']
 export type ChatParticipant = Database['public']['Tables']['chat_participants']['Row']
 export type ChatMessage = Database['public']['Tables']['chat_messages']['Row']
 export type ChatRequest = Database['public']['Tables']['chat_requests']['Row']
+export type StarredMessage = Database['public']['Tables']['starred_messages']['Row']
 
 export type MessageWithProfile = Message & { profiles: Profile }
-export type ChatMessageWithProfile = ChatMessage & { profiles: Profile }
+export type ChatMessageWithProfile = ChatMessage & {
+  profiles: Profile
+  reply_to?: ChatMessage & { profiles: Profile } | null
+}
 export type TeamMemberWithProfile = TeamMember & { profiles: Profile }
 export type ActivityWithProfile = Activity & { profiles: Profile }
 export type FriendshipWithProfile = Friendship & { profiles: Profile }

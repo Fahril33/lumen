@@ -247,3 +247,27 @@ body {
   height: 2px;
   border-radius: 1px;
 }
+
+/* WhatsApp-style message highlight */
+@keyframes highlight-flash {
+  0% { background-color: transparent; }
+  15% { background-color: oklch(0.65 0.19 260 / 0.15); }
+  85% { background-color: oklch(0.65 0.19 260 / 0.15); }
+  100% { background-color: transparent; }
+}
+
+.highlight-message {
+  animation: highlight-flash 2s ease-in-out;
+  border-radius: 1.25rem;
+}
+
+@media (hover: hover) {
+  .hover-reveal {
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .group:hover .hover-reveal,
+  .group:focus-within .hover-reveal {
+    opacity: 1;
+  }
+}
