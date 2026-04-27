@@ -8,7 +8,7 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Send, X, FileIcon, ImageIcon } from 'lucide-react'
+import { Send, FileIcon, ImageIcon } from 'lucide-react'
 
 interface FilePreviewDialogProps {
   /** The file object to preview */

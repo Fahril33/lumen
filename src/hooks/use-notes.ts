@@ -139,8 +139,9 @@ export function useFolders(teamId: string | undefined) {
         .eq('id', id)
       if (error) throw error
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['notes', teamId] })
+      queryClient.invalidateQueries({ queryKey: ['note', variables.id] })
     },
   })
 

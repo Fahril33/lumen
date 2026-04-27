@@ -3,6 +3,9 @@ import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import Highlight from '@tiptap/extension-highlight'
+import TaskList from '@tiptap/extension-task-list'
+import TaskItem from '@tiptap/extension-task-item'
+import TextAlign from '@tiptap/extension-text-align'
 import { useNote } from '@/hooks/use-notes'
 import { normalizeTiptapContent } from '@/lib/tiptap-content'
 import { Input } from '@/components/ui/input'
@@ -36,6 +39,11 @@ import {
   Clock,
   Check,
   Copy,
+  ListChecks,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
+  AlignJustify,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { AiToolbarButton } from './ai-toolbar-button'
@@ -73,7 +81,6 @@ export function NoteEditor({ noteId }: NoteEditorProps) {
 
   // Flush any pending save when component unmounts or noteId changes
   useEffect(() => {
-    setHasUnsavedChanges(false)
     return () => {
       if (saveTimeoutRef.current && pendingSaveDataRef.current) {
         clearTimeout(saveTimeoutRef.current)
@@ -108,6 +115,13 @@ export function NoteEditor({ noteId }: NoteEditorProps) {
       }),
       Placeholder.configure({ placeholder: 'Start writing...' }),
       Highlight,
+      TaskList,
+      TaskItem.configure({
+        nested: true,
+      }),
+      TextAlign.configure({
+        types: ['heading', 'paragraph'],
+      }),
     ],
     content: normalizedContent,
     editorProps: {
@@ -166,10 +180,14 @@ export function NoteEditor({ noteId }: NoteEditorProps) {
     }
   }, [editor, normalizedContent, note?.content, hasUnsavedChanges])
 
-  // Sync the title input when noteId changes (defaultValue doesn't update on re-render)
+  // Sync the title input when noteId changes or when a remote update occurs
   useEffect(() => {
     if (titleRef.current && note?.title !== undefined) {
-      titleRef.current.value = note.title
+      // If noteId changed, always update
+      // If note.title updated, only update if not focused to avoid cursor jumping
+      if (document.activeElement !== titleRef.current) {
+        titleRef.current.value = note.title
+      }
     }
   }, [noteId, note?.title])
 
@@ -281,6 +299,13 @@ export function NoteEditor({ noteId }: NoteEditorProps) {
     { icon: <Quote className="w-4 h-4" />, label: 'Blockquote', action: () => editor?.chain().focus().toggleBlockquote().run(), active: editor?.isActive('blockquote') },
     { icon: <CodeSquare className="w-4 h-4" />, label: 'Code Block', action: () => editor?.chain().focus().toggleCodeBlock().run(), active: editor?.isActive('codeBlock') },
     { icon: <Minus className="w-4 h-4" />, label: 'Horizontal Rule', action: () => editor?.chain().focus().setHorizontalRule().run(), active: false },
+    'separator',
+    { icon: <ListChecks className="w-4 h-4" />, label: 'Task List', action: () => editor?.chain().focus().toggleTaskList().run(), active: editor?.isActive('taskList') },
+    'separator',
+    { icon: <AlignLeft className="w-4 h-4" />, label: 'Align Left', action: () => editor?.chain().focus().setTextAlign('left').run(), active: editor?.isActive({ textAlign: 'left' }) },
+    { icon: <AlignCenter className="w-4 h-4" />, label: 'Align Center', action: () => editor?.chain().focus().setTextAlign('center').run(), active: editor?.isActive({ textAlign: 'center' }) },
+    { icon: <AlignRight className="w-4 h-4" />, label: 'Align Right', action: () => editor?.chain().focus().setTextAlign('right').run(), active: editor?.isActive({ textAlign: 'right' }) },
+    { icon: <AlignJustify className="w-4 h-4" />, label: 'Align Justify', action: () => editor?.chain().focus().setTextAlign('justify').run(), active: editor?.isActive({ textAlign: 'justify' }) },
     'separator',
     { icon: <Undo className="w-4 h-4" />, label: 'Undo', action: () => editor?.chain().focus().undo().run(), active: false, disabled: !editor?.can().undo() },
     { icon: <Redo className="w-4 h-4" />, label: 'Redo', action: () => editor?.chain().focus().redo().run(), active: false, disabled: !editor?.can().redo() },
