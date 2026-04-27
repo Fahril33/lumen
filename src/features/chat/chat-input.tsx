@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useCallback } from 'react'
-import { AppleEmoji, EMOJI_REGEX } from './link-preview'
+import { EMOJI_REGEX } from './link-preview'
 
 interface ChatInputProps {
   value: string

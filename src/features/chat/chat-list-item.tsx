@@ -173,7 +173,7 @@ export function ChatListItem({
                 <p className="text-xs line-clamp-1 break-all flex-1 text-primary">
                   <span className="font-semibold">Draft: </span>
                   <span className="text-muted-foreground">
-                    {draft.split(EMOJI_REGEX).map((part, i) => {
+                    {draft.split(EMOJI_REGEX).map((part: string, i: number) => {
                       if (part.match(EMOJI_REGEX)) {
                         return <AppleEmoji key={i} emoji={part} className="w-[1.2em] h-[1.2em] inline-block align-text-bottom mx-[0.05em]" />
                       }
@@ -187,7 +187,7 @@ export function ChatListItem({
                     <StatusTick msgStatus={lastMsg.status ?? 'sent'} />
                   )}
                   <p className={`text-xs line-clamp-1 break-all flex-1 ${isUnread ? 'font-medium text-foreground' : 'text-muted-foreground'}`}>
-                    {(lastMsg?.content || 'Say hi!').split(EMOJI_REGEX).map((part, i) => {
+                    {(lastMsg?.content || 'Say hi!').split(EMOJI_REGEX).map((part: string, i: number) => {
                       if (part.match(EMOJI_REGEX)) {
                         return <AppleEmoji key={i} emoji={part} className="w-[1.2em] h-[1.2em] inline-block align-text-bottom mx-[0.05em]" />
                       }
