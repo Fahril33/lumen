@@ -39,7 +39,7 @@
   --radius-md: 0.5rem;
   --radius-lg: 0.625rem;
   --radius-xl: 0.75rem;
-  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Inter", "Apple Color Emoji", ui-sans-serif, system-ui, sans-serif, "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji", "Android Emoji", "EmojiSymbols";
 }
 
 :root {
@@ -48,7 +48,7 @@
 }
 
 :root,
-:root[data-theme='dark'] {
+:root[data-theme="dark"] {
   --color-background: oklch(0.145 0 0);
   --color-foreground: oklch(0.985 0 0);
   --color-card: oklch(0.17 0.005 285);
@@ -83,7 +83,7 @@
   --color-sidebar-ring: oklch(0.65 0.19 260);
 }
 
-:root[data-theme='comfy'] {
+:root[data-theme="comfy"] {
   --color-background: oklch(0.19 0.015 275);
   --color-foreground: oklch(0.95 0.01 95);
   --color-card: oklch(0.23 0.015 275);
@@ -118,7 +118,7 @@
   --color-sidebar-ring: oklch(0.78 0.12 210);
 }
 
-:root[data-theme='light'] {
+:root[data-theme="light"] {
   --color-background: oklch(0.985 0.002 250);
   --color-foreground: oklch(0.22 0.01 275);
   --color-card: oklch(0.998 0.001 250);
@@ -157,15 +157,37 @@
   border-color: var(--color-border);
 }
 
+html,
 body {
+  height: 100%;
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
   background-color: var(--color-background);
   color: var(--color-foreground);
   font-family: var(--font-sans);
-  font-feature-settings: "rlig" 1, "calt" 1;
+  font-feature-settings:
+    "rlig" 1,
+    "calt" 1;
 }
 
 #root {
   min-height: var(--app-height);
+}
+
+/* Performance: allow browser to skip offscreen message rows */
+.chat-message-row {
+  content-visibility: auto;
+  contain-intrinsic-size: 120px;
+}
+
+/* Multiline clamp helper (no Tailwind plugin needed) */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 /* Custom scrollbar */
@@ -190,7 +212,6 @@ body {
   padding: 1rem;
 }
 
-
 .tiptap p.is-editor-empty:first-child::before {
   color: oklch(0.4 0.01 280);
   content: attr(data-placeholder);
@@ -203,16 +224,39 @@ body {
   margin: 0;
 }
 
-.tiptap h1, .tiptap h2, .tiptap h3, .tiptap ul, .tiptap ol, .tiptap p {
+.tiptap h1,
+.tiptap h2,
+.tiptap h3,
+.tiptap ul,
+.tiptap ol,
+.tiptap p {
   margin-top: 0;
   margin-bottom: 0.5rem;
 }
 
-.tiptap h1 { font-size: 2rem; font-weight: 700; margin-top: 1.5rem; }
-.tiptap h2 { font-size: 1.5rem; font-weight: 600; margin-top: 1.25rem; }
-.tiptap h3 { font-size: 1.25rem; font-weight: 600; margin-top: 1rem; }
-.tiptap ul { list-style: disc; padding-left: 1.5rem; }
-.tiptap ol { list-style: decimal; padding-left: 1.5rem; }
+.tiptap h1 {
+  font-size: 2rem;
+  font-weight: 700;
+  margin-top: 1.5rem;
+}
+.tiptap h2 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-top: 1.25rem;
+}
+.tiptap h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-top: 1rem;
+}
+.tiptap ul {
+  list-style: disc;
+  padding-left: 1.5rem;
+}
+.tiptap ol {
+  list-style: decimal;
+  padding-left: 1.5rem;
+}
 .tiptap blockquote {
   border-left: 3px solid oklch(0.65 0.19 260);
   padding-left: 1rem;
@@ -303,7 +347,10 @@ body {
 
 /* Folder tree animations */
 .folder-tree-item {
-  transition: background-color 150ms ease, transform 150ms cubic-bezier(0.2, 0, 0, 1), opacity 150ms ease;
+  transition:
+    background-color 150ms ease,
+    transform 150ms cubic-bezier(0.2, 0, 0, 1),
+    opacity 150ms ease;
 }
 .folder-tree-item:hover {
   background: oklch(0.2 0.01 280 / 0.5);
@@ -319,10 +366,18 @@ body {
 
 /* WhatsApp-style message highlight */
 @keyframes highlight-flash {
-  0% { background-color: transparent; }
-  15% { background-color: oklch(0.65 0.19 260 / 0.15); }
-  85% { background-color: oklch(0.65 0.19 260 / 0.15); }
-  100% { background-color: transparent; }
+  0% {
+    background-color: transparent;
+  }
+  15% {
+    background-color: oklch(0.65 0.19 260 / 0.15);
+  }
+  85% {
+    background-color: oklch(0.65 0.19 260 / 0.15);
+  }
+  100% {
+    background-color: transparent;
+  }
 }
 
 .highlight-message {

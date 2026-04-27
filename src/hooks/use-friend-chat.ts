@@ -33,6 +33,61 @@ const CHAT_LIST_SELECT = `
   messages:chat_messages(id, user_id, content, created_at, status, message_kind)
 `
 
+function coerceReactions(value: unknown): Record<string, string[]> {
+  if (!value) return {}
+
+  let parsed: unknown = value
+  if (typeof value === 'string') {
+    try {
+      parsed = JSON.parse(value)
+    } catch {
+      return {}
+    }
+  }
+
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {}
+  const obj = parsed as Record<string, unknown>
+  const out: Record<string, string[]> = {}
+
+  for (const [emoji, users] of Object.entries(obj)) {
+    if (!emoji) continue
+    if (!Array.isArray(users)) continue
+    const userIds = users.filter((u): u is string => typeof u === 'string')
+    if (userIds.length === 0) continue
+    out[emoji] = Array.from(new Set(userIds))
+  }
+
+  return out
+}
+
+function toggleReactionLocal(current: unknown, userId: string, emoji: string) {
+  const reactions = coerceReactions(current)
+  const normalizedEmoji = emoji.trim()
+  if (!normalizedEmoji) return reactions
+
+  let currentEmoji: string | null = null
+  for (const [key, userIds] of Object.entries(reactions)) {
+    if (userIds.includes(userId)) {
+      currentEmoji = key
+      break
+    }
+  }
+
+  // Remove user from all reactions first
+  for (const key of Object.keys(reactions)) {
+    reactions[key] = reactions[key]!.filter((id) => id !== userId)
+    if (reactions[key]!.length === 0) delete reactions[key]
+  }
+
+  // Toggle off if same emoji
+  if (currentEmoji === normalizedEmoji) return reactions
+
+  // Otherwise add to the new emoji
+  const existing = reactions[normalizedEmoji] ?? []
+  reactions[normalizedEmoji] = Array.from(new Set([...existing, userId]))
+  return reactions
+}
+
 async function fetchUnreadMap(userId: string) {
   /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
   const { data: unreadData, error } = await (supabase.from('chat_messages') as any)
@@ -294,6 +349,10 @@ export function useChatMessages(chatId: string | undefined) {
     initialPageParam: null as string | null,
     getNextPageParam: (lastPage) => lastPage.nextCursor,
     enabled: !!chatId,
+    staleTime: 15_000,
+    gcTime: 10 * 60_000,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
   })
 
   const messages = useMemo(
@@ -320,8 +379,18 @@ export function useChatMessages(chatId: string | undefined) {
             .eq('id', payload.new.id)
             .maybeSingle()
 
-          /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const newMsg = ((data ?? payload.new) as any) as ChatMessageWithProfile
+          
+          // Play notification sound if not muted and message is from someone else
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { isMuted } = (window as any).appShellStore?.getState?.() || { isMuted: false }
+          if (!isMuted && newMsg.user_id !== user?.id) {
+            const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3')
+            audio.volume = 0.4
+            audio.play().catch(() => {})
+          }
+
           queryClient.setQueryData(
             ['chat_messages', chatId],
             (old: { pages: ChatMessagesPage[]; pageParams: Array<string | null> } | undefined) => {
@@ -355,8 +424,6 @@ export function useChatMessages(chatId: string | undefined) {
               }
             }
           )
-
-          queryClient.invalidateQueries({ queryKey: ['chat_messages', chatId] })
         }
       )
       .on(
@@ -404,7 +471,7 @@ export function useChatMessages(chatId: string | undefined) {
       .subscribe()
 
     return () => { channel.unsubscribe() }
-  }, [chatId, queryClient])
+  }, [chatId, queryClient, user?.id])
 
   const sendMessage = useMutation({
     mutationFn: async ({ content, replyToId, fileUrl, fileName, fileType }: { content: string, replyToId?: string, fileUrl?: string, fileName?: string, fileType?: string }) => {
@@ -424,6 +491,16 @@ export function useChatMessages(chatId: string | undefined) {
     },
     onSuccess: (newMsg) => {
       if (!newMsg) return
+      
+      // Play send sound if not muted
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { isMuted } = (window as any).appShellStore?.getState?.() || { isMuted: false }
+      if (!isMuted) {
+        const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3')
+        audio.volume = 0.3
+        audio.play().catch(() => {})
+      }
+
       queryClient.setQueryData(
         ['chat_messages', chatId],
         (old: { pages: ChatMessagesPage[]; pageParams: Array<string | null> } | undefined) => {
@@ -471,7 +548,6 @@ export function useChatMessages(chatId: string | undefined) {
       if (error) throw error
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['chat_messages', chatId] })
     },
   })
 
@@ -485,7 +561,6 @@ export function useChatMessages(chatId: string | undefined) {
       if (error) throw error
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['chat_messages', chatId] })
       queryClient.invalidateQueries({ queryKey: ['chats', user?.id] })
     },
   })
@@ -508,6 +583,86 @@ export function useChatMessages(chatId: string | undefined) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['starred_messages', chatId] })
+    },
+  })
+
+  const toggleReaction = useMutation({
+    mutationFn: async ({ messageId, emoji }: { messageId: string; emoji: string }) => {
+      if (!user) throw new Error('Not authenticated')
+      const normalizedEmoji = emoji.trim()
+      if (!normalizedEmoji) throw new Error('Invalid emoji')
+
+      /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+      const { data, error } = await (supabase.rpc as any)('toggle_chat_message_reaction', {
+        p_message_id: messageId,
+        p_emoji: normalizedEmoji,
+      })
+
+      if (error) throw error
+      return { messageId, reactions: data as unknown }
+    },
+    onMutate: async ({ messageId, emoji }) => {
+      if (!chatId || !user) return
+
+      await queryClient.cancelQueries({ queryKey: ['chat_messages', chatId] })
+      const previousMessages = queryClient.getQueryData(['chat_messages', chatId])
+
+      queryClient.setQueryData(
+        ['chat_messages', chatId],
+        (old: { pages: ChatMessagesPage[]; pageParams: Array<string | null> } | undefined) => {
+          if (!old) return old
+
+          return {
+            ...old,
+            pages: old.pages.map((page) => ({
+              ...page,
+              items: page.items.map((message) => {
+                if (message.id !== messageId) return message
+                return {
+                  ...message,
+                  reactions: toggleReactionLocal(message.reactions, user.id, emoji),
+                }
+              }),
+            })),
+          }
+        }
+      )
+
+      return { previousMessages }
+    },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    onError: (err: any, _variables, context) => {
+      if (!chatId || !context) return
+      queryClient.setQueryData(['chat_messages', chatId], context.previousMessages)
+      const message =
+        [err?.message, err?.details, err?.hint, err?.code ? `(${err.code})` : null]
+          .filter(Boolean)
+          .join(' ') || 'Failed to react to message'
+      toast.error(message)
+      console.error('toggle_chat_message_reaction failed', err)
+    },
+    onSuccess: ({ messageId, reactions }) => {
+      if (!chatId) return
+      if (!reactions) return
+
+      const nextReactions = coerceReactions(reactions)
+
+      queryClient.setQueryData(
+        ['chat_messages', chatId],
+        (old: { pages: ChatMessagesPage[]; pageParams: Array<string | null> } | undefined) => {
+          if (!old) return old
+
+          return {
+            ...old,
+            pages: old.pages.map((page) => ({
+              ...page,
+              items: page.items.map((message) =>
+                message.id === messageId ? { ...message, reactions: nextReactions } : message
+              ),
+            })),
+          }
+        }
+      )
     },
   })
 
@@ -581,10 +736,8 @@ export function useChatMessages(chatId: string | undefined) {
       queryClient.setQueryData(['chats', user.id], context.previousChats)
     },
     onSuccess: () => {
-      // Allow database to settle then refresh UI
       setTimeout(() => {
          queryClient.invalidateQueries({ queryKey: ['chats', user?.id] })
-         queryClient.invalidateQueries({ queryKey: ['chat_messages', chatId] })
       }, 100)
     }
   })
@@ -596,6 +749,7 @@ export function useChatMessages(chatId: string | undefined) {
     editMessage,
     deleteMessage,
     toggleStar,
+    toggleReaction,
     uploadFile,
     markAsRead,
     fetchOlderMessages: messagesQuery.fetchNextPage,

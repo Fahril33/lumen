@@ -3,7 +3,7 @@ import { useTheme } from '@/hooks/use-theme'
 
 interface EmojiPickerProps {
   onSelect: (emoji: string) => void
-  onClose: () => void
+  onClose?: () => void
 }
 
 export function EmojiPicker({ onSelect }: EmojiPickerProps) {
@@ -47,7 +47,9 @@ export function EmojiPicker({ onSelect }: EmojiPickerProps) {
         }
       `}</style>
       <EmojiPickerReact
-        onEmojiClick={(emojiData) => onSelect(emojiData.emoji)}
+        onEmojiClick={(emojiData) => {
+          onSelect(emojiData.emoji)
+        }}
         emojiStyle={EmojiStyle.APPLE}
         theme={pickerTheme}
         lazyLoadEmojis={true}

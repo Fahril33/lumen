@@ -21,6 +21,7 @@ import { useResponsiveLayout } from '@/hooks/use-responsive-layout'
 import { useChatDrafts } from '@/hooks/use-chat-drafts'
 import { useTypingIndicator } from '@/hooks/use-typing-indicator'
 import { Trash2, MoreVertical } from 'lucide-react'
+import { AppleEmoji, EMOJI_REGEX } from '@/features/chat/link-preview'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -171,7 +172,14 @@ export function ChatListItem({
               ) : draft ? (
                 <p className="text-xs line-clamp-1 break-all flex-1 text-primary">
                   <span className="font-semibold">Draft: </span>
-                  <span className="text-muted-foreground">{draft}</span>
+                  <span className="text-muted-foreground">
+                    {draft.split(EMOJI_REGEX).map((part, i) => {
+                      if (part.match(EMOJI_REGEX)) {
+                        return <AppleEmoji key={i} emoji={part} className="w-[1.2em] h-[1.2em] inline-block align-text-bottom mx-[0.05em]" />
+                      }
+                      return part
+                    })}
+                  </span>
                 </p>
               ) : (
                 <>
@@ -179,7 +187,12 @@ export function ChatListItem({
                     <StatusTick msgStatus={lastMsg.status ?? 'sent'} />
                   )}
                   <p className={`text-xs line-clamp-1 break-all flex-1 ${isUnread ? 'font-medium text-foreground' : 'text-muted-foreground'}`}>
-                    {lastMsg?.content || 'Say hi!'}
+                    {(lastMsg?.content || 'Say hi!').split(EMOJI_REGEX).map((part, i) => {
+                      if (part.match(EMOJI_REGEX)) {
+                        return <AppleEmoji key={i} emoji={part} className="w-[1.2em] h-[1.2em] inline-block align-text-bottom mx-[0.05em]" />
+                      }
+                      return part
+                    })}
                   </p>
                 </>
               )}

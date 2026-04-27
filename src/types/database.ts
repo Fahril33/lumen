@@ -359,6 +359,7 @@ export interface Database {
           file_url: string | null
           file_name: string | null
           file_type: string | null
+          reactions: Json
           status: 'sent' | 'received' | 'read'
           message_kind: 'standard' | 'request_intro'
           related_request_id: string | null
@@ -376,6 +377,7 @@ export interface Database {
           file_url?: string | null
           file_name?: string | null
           file_type?: string | null
+          reactions?: Json
           status?: 'sent' | 'received' | 'read'
           message_kind?: 'standard' | 'request_intro'
           related_request_id?: string | null
@@ -391,6 +393,7 @@ export interface Database {
           message_kind?: 'standard' | 'request_intro'
           related_request_id?: string | null
           reply_to_id?: string | null
+          reactions?: Json
           is_edited?: boolean
           is_deleted?: boolean
           updated_at?: string

@@ -6,6 +6,7 @@
  */
 import { X, Reply } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { AppleEmoji, EMOJI_REGEX } from '@/features/chat/link-preview'
 import type { ChatMessageWithProfile } from '@/types/database'
 
 interface ReplyPreviewBarProps {
@@ -31,7 +32,14 @@ export function ReplyPreviewBar({ message, isOwnMessage, onCancel }: ReplyPrevie
         <Reply className="w-4 h-4 text-primary shrink-0 scale-x-[-1]" />
         <div className="min-w-0 flex-1 border-l-2 border-primary pl-2">
           <p className="text-xs font-semibold text-primary truncate">{senderName}</p>
-          <p className="text-xs text-muted-foreground truncate">{previewText}</p>
+          <p className="text-xs text-muted-foreground truncate">
+            {previewText.split(EMOJI_REGEX).map((part, i) => {
+              if (part.match(EMOJI_REGEX)) {
+                return <AppleEmoji key={i} emoji={part} className="w-[1.2em] h-[1.2em] inline-block align-text-bottom mx-[0.05em]" />
+              }
+              return part
+            })}
+          </p>
         </div>
       </div>
       <Button

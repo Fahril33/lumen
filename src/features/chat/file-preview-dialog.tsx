@@ -76,29 +76,29 @@ export function FilePreviewDialog({
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="sm:max-w-md p-0 gap-0 overflow-hidden">
+      <DialogContent className="sm:max-w-md p-0 gap-0 overflow-hidden max-h-[90vh] flex flex-col">
         <DialogTitle className="sr-only">Preview file</DialogTitle>
 
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-card/50">
-          <div className="flex items-center gap-2 min-w-0">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-card/50 pr-12">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
             {isImage ? (
               <ImageIcon className="w-4 h-4 text-primary shrink-0" />
             ) : (
               <FileIcon className="w-4 h-4 text-primary shrink-0" />
             )}
-            <span className="text-sm font-medium truncate">{file.name}</span>
-            <span className="text-xs text-muted-foreground shrink-0">{fileSize}</span>
+            <span className="text-sm font-medium truncate flex-1">{file.name}</span>
+            <span className="text-xs text-muted-foreground shrink-0 ml-auto">{fileSize}</span>
           </div>
         </div>
 
         {/* Preview area */}
-        <div className="flex items-center justify-center bg-black/5 dark:bg-white/5 min-h-[200px] max-h-[50vh] overflow-hidden">
+        <div className="flex-1 flex items-center justify-center bg-black/5 dark:bg-white/5 overflow-y-auto min-h-[200px]">
           {isImage && previewUrl ? (
             <img
               src={previewUrl}
               alt={file.name}
-              className="max-w-full max-h-[50vh] object-contain"
+              className="max-w-full h-auto object-contain"
             />
           ) : (
             <div className="flex flex-col items-center gap-3 py-12 px-6">

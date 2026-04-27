@@ -5,6 +5,7 @@ import { useTeams } from '@/hooks/use-teams'
 import { supabase } from '@/lib/supabase'
 import { useTeamStore } from '@/stores/team-store'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { ScrollArea } from '@/components/ui/scroll-area'
 
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatRelativeTime } from '@/lib/utils'
@@ -120,105 +121,106 @@ export function DashboardView() {
   ]
 
   return (
-    <div className="dashboard-main-container flex-1 p-6 touch-pan-y">
-      <div className="dashboard-content-wrapper max-w-6xl mx-auto space-y-6">
-        
-        {/* Header */}
-        <div className="dashboard-header flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <BarChart3 className="w-6 h-6 text-primary" />
-              Dashboard
-            </h1>
-            <p className="text-muted-foreground text-sm mt-1">
-              {currentTeam.name} — Overview & recent activity
-            </p>
+    <ScrollArea className="flex-1 h-full">
+      <div className="dashboard-main-container p-6 touch-pan-y">
+        <div className="dashboard-content-wrapper max-w-6xl mx-auto space-y-6">
+          
+          {/* Header */}
+          <div className="dashboard-header flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold flex items-center gap-2">
+                <BarChart3 className="w-6 h-6 text-primary" />
+                Dashboard
+              </h1>
+              <p className="text-muted-foreground text-sm mt-1">
+                {currentTeam.name} — Overview & recent activity
+              </p>
+            </div>
+          </div>
+
+          {/* Stat cards */}
+          <div className="dashboard-stats-grid grid grid-cols-2 md:grid-cols-4 gap-4">
+            {isDashboardLoading
+              ? Array.from({ length: 4 }).map((_, index) => (
+                  <Card key={index} className="dashboard-stats-card bg-card/50 backdrop-blur border-border/50">
+                    <CardContent className="p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <Skeleton className="h-5 w-5" />
+                        <Skeleton className="h-8 w-10" />
+                      </div>
+                      <Skeleton className="h-3 w-16" />
+                    </CardContent>
+                  </Card>
+                ))
+              : statCards.map((stat) => (
+                  <Card key={stat.id} className={`dashboard-stats-card dashboard-stats-${stat.id} bg-card/50 backdrop-blur border-border/50 hover:border-primary/30 transition-colors`}>
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className={stat.color}>{stat.icon}</span>
+                        <span className="text-2xl font-bold">{stat.value}</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">{stat.label}</p>
+                    </CardContent>
+                  </Card>
+                ))}
+          </div>
+
+          <div className="dashboard-widgets-grid grid md:grid-cols-3 gap-6">
+            
+            {/* Recent Activity */}
+            <Card className="dashboard-activity-card md:col-span-2 bg-card/50 backdrop-blur border-border/50 flex flex-col">
+              <CardHeader className="pb-3 shrink-0">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Activity className="w-4 h-4 text-primary" />
+                  Recent Activity
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="flex-1 min-h-0 p-0">
+                <div className="dashboard-activity-scroll-area max-h-[400px] overflow-y-auto px-6 pb-6 pt-0 touch-pan-y scroll-smooth">
+                  {isDashboardLoading ? (
+                    <div className="space-y-3">
+                      {Array.from({ length: 6 }).map((_, index) => (
+                        <div key={index} className="flex items-start gap-3 p-2">
+                          <Skeleton className="mt-0.5 h-4 w-4" />
+                          <div className="flex-1 space-y-2">
+                            <Skeleton className="h-4 w-40" />
+                            <Skeleton className="h-3 w-20" />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : !activities?.length ? (
+                    <p className="text-sm text-muted-foreground text-center py-8">No activity yet</p>
+                  ) : (
+                    <div className="space-y-1">
+                      {activities.map((act) => (
+                        <div key={act.id} className="dashboard-activity-item flex items-start gap-3 p-2 rounded-lg hover:bg-accent/50 transition-colors">
+                          <div className="mt-0.5 shrink-0">{activityIcons[act.type]}</div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm">
+                              <span className="font-medium">{act.profiles?.full_name}</span>{' '}
+                              <span className="text-muted-foreground">
+                                {act.type.replace(/_/g, ' ')}
+                              </span>
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              {formatRelativeTime(act.created_at)}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Team Members Card Component */}
+            <TeamMembersCard teamId={currentTeam.id} teamInviteCode={currentTeam.invite_code} />
           </div>
         </div>
-
-        {/* Stat cards */}
-        <div className="dashboard-stats-grid grid grid-cols-2 md:grid-cols-4 gap-4">
-          {isDashboardLoading
-            ? Array.from({ length: 4 }).map((_, index) => (
-                <Card key={index} className="dashboard-stats-card bg-card/50 backdrop-blur border-border/50">
-                  <CardContent className="p-4 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <Skeleton className="h-5 w-5" />
-                      <Skeleton className="h-8 w-10" />
-                    </div>
-                    <Skeleton className="h-3 w-16" />
-                  </CardContent>
-                </Card>
-              ))
-            : statCards.map((stat) => (
-                <Card key={stat.id} className={`dashboard-stats-card dashboard-stats-${stat.id} bg-card/50 backdrop-blur border-border/50 hover:border-primary/30 transition-colors`}>
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className={stat.color}>{stat.icon}</span>
-                      <span className="text-2xl font-bold">{stat.value}</span>
-                    </div>
-                    <p className="text-xs text-muted-foreground">{stat.label}</p>
-                  </CardContent>
-                </Card>
-              ))}
-        </div>
-
-        <div className="dashboard-widgets-grid grid md:grid-cols-3 gap-6">
-          
-          {/* Recent Activity */}
-          <Card className="dashboard-activity-card md:col-span-2 bg-card/50 backdrop-blur border-border/50 flex flex-col">
-            <CardHeader className="pb-3 shrink-0">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Activity className="w-4 h-4 text-primary" />
-                Recent Activity
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="flex-1 min-h-0 p-0">
-              {/* Added touch-pan-y to ensure the browser prioritizes vertical scrolling over default touch behaviors */}
-              <div className="dashboard-activity-scroll-area max-h-[400px] overflow-y-auto px-6 pb-6 pt-0 touch-pan-y scroll-smooth">
-                {isDashboardLoading ? (
-                  <div className="space-y-3">
-                    {Array.from({ length: 6 }).map((_, index) => (
-                      <div key={index} className="flex items-start gap-3 p-2">
-                        <Skeleton className="mt-0.5 h-4 w-4" />
-                        <div className="flex-1 space-y-2">
-                          <Skeleton className="h-4 w-40" />
-                          <Skeleton className="h-3 w-20" />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : !activities?.length ? (
-                  <p className="text-sm text-muted-foreground text-center py-8">No activity yet</p>
-                ) : (
-                  <div className="space-y-1">
-                    {activities.map((act) => (
-                      <div key={act.id} className="dashboard-activity-item flex items-start gap-3 p-2 rounded-lg hover:bg-accent/50 transition-colors">
-                        <div className="mt-0.5 shrink-0">{activityIcons[act.type]}</div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm">
-                            <span className="font-medium">{act.profiles?.full_name}</span>{' '}
-                            <span className="text-muted-foreground">
-                              {act.type.replace(/_/g, ' ')}
-                            </span>
-                          </p>
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            {formatRelativeTime(act.created_at)}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Team Members Card Component */}
-          <TeamMembersCard teamId={currentTeam.id} teamInviteCode={currentTeam.invite_code} />
-        </div>
       </div>
-    </div>
+    </ScrollArea>
   )
 }
 

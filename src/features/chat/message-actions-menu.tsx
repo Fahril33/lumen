@@ -15,7 +15,7 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu'
-import { Reply, Pencil, Star, Trash2, Copy, StarOff } from 'lucide-react'
+import { Reply, Pencil, Star, Trash2, Copy, StarOff, Download } from 'lucide-react'
 import { useResponsiveLayout } from '@/hooks/use-responsive-layout'
 import { toast } from 'sonner'
 
@@ -34,6 +34,9 @@ interface MessageActionsMenuProps {
   onEdit: () => void
   onDelete: () => void
   onToggleStar: () => void
+  /** Optional file info for downloads */
+  fileUrl?: string | null
+  fileName?: string | null
   /** Disables the menu trigger (e.g. during edit mode) */
   disabled?: boolean
 }
@@ -48,6 +51,8 @@ export function MessageActionsMenu({
   onEdit,
   onDelete,
   onToggleStar,
+  fileUrl,
+  fileName,
   disabled = false,
 }: MessageActionsMenuProps) {
   const { isMobile } = useResponsiveLayout()
@@ -61,6 +66,26 @@ export function MessageActionsMenu({
     navigator.clipboard.writeText(content)
     toast.success('Copied to clipboard')
   }, [content])
+
+  // --- Download file ---
+  const handleDownload = useCallback(async () => {
+    if (!fileUrl) return
+    try {
+      const response = await fetch(fileUrl)
+      const blob = await response.blob()
+      const blobUrl = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = blobUrl
+      link.download = fileName || 'download'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 100)
+    } catch (err) {
+      console.error('Download failed:', err)
+      window.open(fileUrl, '_blank')
+    }
+  }, [fileUrl, fileName])
 
   // --- Mobile: long-press handlers ---
   const handleTouchStart = useCallback((e: TouchEvent) => {
@@ -109,6 +134,15 @@ export function MessageActionsMenu({
         >
           <Copy className="w-4 h-4" />
           Copy
+        </ContextMenuItem>
+      )}
+      {fileUrl && !isDeleted && (
+        <ContextMenuItem
+          onClick={() => { handleDownload(); close() }}
+          className="gap-2"
+        >
+          <Download className="w-4 h-4" />
+          Download
         </ContextMenuItem>
       )}
       {!isDeleted && (
@@ -201,6 +235,16 @@ export function MessageActionsMenu({
                   >
                     <Copy className="w-4 h-4 text-muted-foreground" />
                     Copy
+                  </button>
+                )}
+                {fileUrl && !isDeleted && (
+                  <button
+                    type="button"
+                    className="w-full flex items-center gap-3 px-4 py-3 text-sm hover:bg-accent transition-colors"
+                    onClick={() => { handleDownload(); setMobileOpen(false) }}
+                  >
+                    <Download className="w-4 h-4 text-muted-foreground" />
+                    Download
                   </button>
                 )}
                 {!isDeleted && (

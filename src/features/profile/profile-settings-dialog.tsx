@@ -99,6 +99,19 @@ interface ProfileSettingsFormProps {
   onClose: () => void
 }
 
+const OPENAI_MODELS = ['gpt-5', 'gpt-5-mini', 'gpt-5-nano', 'gpt-4.1', 'gpt-4.1-mini', 'gpt-4o'] as const
+const GEMINI_MODELS = ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-1.5-flash', 'gemini-flash-lite-latest'] as const
+
+function sanitizeAiModel(provider: string, model: string) {
+  if (provider === 'openai') {
+    return (OPENAI_MODELS as readonly string[]).includes(model) ? model : 'gpt-5'
+  }
+  if (provider === 'gemini') {
+    return (GEMINI_MODELS as readonly string[]).includes(model) ? model : 'gemini-2.5-pro'
+  }
+  return ''
+}
+
 function ProfileSettingsForm({ profile, onClose }: ProfileSettingsFormProps) {
   const { saveProfileMutation, uploadAvatarMutation } = useProfileSettings()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -108,7 +121,9 @@ function ProfileSettingsForm({ profile, onClose }: ProfileSettingsFormProps) {
   const [allowAnonChat, setAllowAnonChat] = useState(profile.allow_anon_chat ?? false)
   const [aiServiceProvider, setAiServiceProvider] = useState(profile.ai_service_provider ?? '')
   const [aiApiKey, setAiApiKey] = useState(profile.ai_api_key ?? '')
-  const [aiModel, setAiModel] = useState(profile.ai_model ?? '')
+  const [aiModel, setAiModel] = useState(() =>
+    sanitizeAiModel(profile.ai_service_provider ?? '', profile.ai_model ?? '')
+  )
   const [aiCustomInstructions, setAiCustomInstructions] = useState(profile.ai_custom_instructions ?? '')
   const [aiLanguage, setAiLanguage] = useState(profile.ai_language ?? '')
 
@@ -247,7 +262,7 @@ function ProfileSettingsForm({ profile, onClose }: ProfileSettingsFormProps) {
             <Select value={aiServiceProvider} onValueChange={(value) => {
               setAiServiceProvider(value)
               if (value === 'openai') setAiModel('gpt-5')
-              else if (value === 'gemini') setAiModel('gemini-1.5-pro')
+              else if (value === 'gemini') setAiModel('gemini-2.5-pro')
             }}>
               <SelectTrigger id="ai-service-provider" className="w-full [&>span]:truncate [&>span]:text-left">
                 <SelectValue placeholder="Select a provider" />
