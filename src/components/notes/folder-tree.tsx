@@ -135,6 +135,21 @@ export function FolderTree({
 
     if (!draggedItem || !overItem) return
 
+    // Prevent dragging a folder into its own descendant (prevent cycles)
+    if (draggedItem.type === 'folder') {
+      let currentId: string | null = overItem.id
+      let isDescendant = false
+      while (currentId) {
+        if (currentId === draggedItem.id) {
+          isDescendant = true
+          break
+        }
+        const currentItem = findItem(currentId, displayItems)
+        currentId = currentItem?.parentId || null
+      }
+      if (isDescendant) return
+    }
+
     // If dropping a note onto a folder (and they aren't already in the same parent being reordered)
     // Or if we specifically want to nest:
     const isNesting = overItem.type === 'folder' && draggedItem.parentId !== overItem.id && overItem.id !== draggedItem.parentId
@@ -162,10 +177,8 @@ export function FolderTree({
         const filteredSiblings = siblings.filter(i => i.id !== draggedItem.id)
         const overIndex = filteredSiblings.findIndex(i => i.id === overItem.id)
         
-        // Insert dragged item at the drop index
         if (overIndex !== -1) {
           // If dragging down, place after overItem. If dragging up, place before.
-          // active.data.current?.sortable?.index could tell us direction, but DndKit closestCenter is usually accurate enough.
           filteredSiblings.splice(overIndex, 0, draggedItem)
         } else {
           filteredSiblings.push(draggedItem)
@@ -226,11 +239,12 @@ export function FolderTree({
           ))}
         </div>
       </SortableContext>
-      <DragOverlay>
+      <DragOverlay zIndex={1000}>
         {activeItem && (
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-card border border-primary/30 rounded-lg shadow-xl text-sm">
-            <span className="text-muted-foreground">{activeItem.type === 'folder' ? '📁' : '📄'}</span>
-            <span className="font-medium">{activeItem.name}</span>
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-background/80 backdrop-blur-md border border-primary/30 rounded-lg shadow-[0_8px_30px_rgb(0,0,0,0.5)] text-sm whitespace-nowrap min-w-[150px] pointer-events-none ring-1 ring-primary/20">
+            <span className="shrink-0">{activeItem.type === 'folder' ? '📁' : '📄'}</span>
+            <span className="font-medium truncate">{activeItem.name}</span>
+            <div className="ml-auto w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
           </div>
         )}
       </DragOverlay>

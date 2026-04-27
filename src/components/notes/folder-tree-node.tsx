@@ -64,12 +64,16 @@ export function FolderTreeNode({
     transform,
     transition,
     isDragging,
+    isOver,
   } = useSortable({ id: item.id })
 
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
     paddingLeft: `${depth * 16 + 4}px`,
+    opacity: isDragging ? 0.3 : 1,
+    position: 'relative' as const,
+    zIndex: isDragging ? 0 : 1,
   }
 
   useEffect(() => {
@@ -110,9 +114,11 @@ export function FolderTreeNode({
       <div
         className={cn(
           'folder-tree-item group flex items-center gap-1 rounded-md pr-1 min-h-[30px]',
-          isDragging && 'dragging opacity-40',
-          isActive && 'bg-primary/15 text-primary',
-          !isActive && !isDragging && 'hover:bg-accent/50'
+          isDragging && 'bg-accent/10 ring-1 ring-border',
+          !isDragging && isOver && isFolder && 'bg-primary/20 ring-2 ring-primary/40 shadow-sm',
+          !isDragging && isOver && !isFolder && 'border-t-2 border-primary mt-[-2px]',
+          isActive && !isDragging && 'bg-primary/15 text-primary',
+          !isActive && !isDragging && !isOver && 'hover:bg-accent/50'
         )}
       >
         {/* Drag handle */}
